@@ -141,6 +141,23 @@ func (p *Pool) Upsert(in AccountInput) (AccountView, error) {
 	if old == nil && in.APIKey == "" {
 		return AccountView{}, ErrInvalid
 	}
+	if old == nil {
+		// Display metadata can echo an already registered key. Preserve same-key
+		// updates/imports, but never admit a new key overlapping that metadata.
+		for _, existing := range p.accounts {
+			if strings.Contains(existing.quota.SubscriptionStatus, in.APIKey) {
+				return AccountView{}, ErrInvalid
+			}
+			if month := existing.quota.Month; month != nil && (strings.Contains(month.Name, in.APIKey) || strings.Contains(month.Source, in.APIKey)) {
+				return AccountView{}, ErrInvalid
+			}
+			for _, window := range existing.quota.Windows {
+				if strings.Contains(window.Source, in.APIKey) {
+					return AccountView{}, ErrInvalid
+				}
+			}
+		}
+	}
 	if old != nil && old.GroupID != in.GroupID {
 		if p.inflight[old.GroupID] > 0 || (in.ID == "" && in.APIKey != "") {
 			return AccountView{}, ErrInvalid
@@ -250,11 +267,28 @@ func (p *Pool) Delete(id string) error {
 	return nil
 }
 
+func cloneQuota(q Quota) Quota {
+	q.Windows = append([]Window(nil), q.Windows...)
+	if q.Month != nil {
+		month := *q.Month
+		q.Month = &month
+	}
+	if q.MonthlyCredits != nil {
+		monthly := *q.MonthlyCredits
+		q.MonthlyCredits = &monthly
+	}
+	if q.SubscriptionPeriodEnd != nil {
+		periodEnd := *q.SubscriptionPeriodEnd
+		q.SubscriptionPeriodEnd = &periodEnd
+	}
+	return q
+}
+
 func cloneAccounts(src map[string]*account) map[string]*account {
 	out := make(map[string]*account, len(src))
 	for id, a := range src {
 		copy := *a
-		copy.quota.Windows = append([]Window(nil), a.quota.Windows...)
+		copy.quota = cloneQuota(a.quota)
 		out[id] = &copy
 	}
 	return out
@@ -296,15 +330,20 @@ func (p *Pool) Snapshot() []AccountView {
 	return out
 }
 func (p *Pool) viewLocked(a *account, now time.Time) AccountView {
-	q := a.quota
+	q := cloneQuota(a.quota)
 	if q.Identity == "" {
 		q.Identity = a.Identity
 	}
-	q.Windows = append([]Window(nil), q.Windows...)
 	q.Email = p.redactLocked(q.Email)
 	q.Plan, q.Identity = p.redactLocked(q.Plan), p.redactLocked(q.Identity)
+	q.SubscriptionStatus = p.redactLocked(q.SubscriptionStatus)
+	if q.Month != nil {
+		q.Month.Name = p.redactLocked(q.Month.Name)
+		q.Month.Source = p.redactLocked(q.Month.Source)
+	}
 	for i := range q.Windows {
 		q.Windows[i].Name = p.redactLocked(q.Windows[i].Name)
+		q.Windows[i].Source = p.redactLocked(q.Windows[i].Source)
 	}
 	return AccountView{ID: p.redactLocked(a.ID), AuthID: a.AuthID, Name: p.redactLocked(a.Name), GroupID: p.redactLocked(a.GroupID), MaxConcurrency: a.Limit, Enabled: a.Enabled, Inflight: p.inflight[a.GroupID], KeyFingerprint: a.Fingerprint, Quota: q, Status: p.reasonLocked(a, now)}
 }
@@ -343,7 +382,15 @@ func (p *Pool) ObserveQuota(id string, q Quota) error {
 		p.appendLocked(Event{AccountID: a.ID, GroupID: a.GroupID, Action: "quota_observed", Reason: "quota_unavailable"})
 		return ErrInvalid
 	}
-	q.Windows = append([]Window(nil), q.Windows...)
+	// Invalid optional display metrics must not poison a valid measured quota
+	// or prevent JSON output. Drop only the affected display field.
+	if month := q.Month; month != nil && (!finite(month.Used) || !finite(month.Cap) || !finite(month.Remaining)) {
+		q.Month = nil
+	}
+	if q.MonthlyCredits != nil && !finite(*q.MonthlyCredits) {
+		q.MonthlyCredits = nil
+	}
+	q = cloneQuota(q)
 	q.Identity = strings.TrimSpace(q.Identity)
 	if len(q.Identity) > 256 || p.containsSecretLocked(q.Identity) {
 		a.quota = failed

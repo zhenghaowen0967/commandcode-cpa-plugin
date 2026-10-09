@@ -770,6 +770,221 @@ func TestIdleMemberCannotSplitAnActiveGroup(t *testing.T) {
 	}
 }
 
+func TestQuotaDisplayPointersAreDeepCopied(t *testing.T) {
+	for _, boundary := range []string{"observation", "snapshot", "account clone"} {
+		t.Run(boundary, func(t *testing.T) {
+			p, _ := testPool(t, time.Minute)
+			a := addAccount(t, p, "display-copy-synthetic-key", "owner", 1)
+			monthly := 12.0
+			periodEnd := time.Date(2026, 10, 16, 4, 3, 37, 0, time.UTC)
+			q := Quota{Headroom: 0.2, RemainingCredits: 17, UpdatedAt: time.Now(),
+				Month:          &Window{Name: "month", Source: "plan_allowance", Used: 288, Cap: 300, Remaining: 12},
+				MonthlyCredits: &monthly, SubscriptionPeriodEnd: &periodEnd, SubscriptionStatus: "active",
+				Windows: []Window{{Name: "weekly", Used: 80, Cap: 100, Remaining: 20}}}
+			if err := p.ObserveQuota(a.ID, q); err != nil {
+				t.Fatal(err)
+			}
+			copy := q
+			switch boundary {
+			case "snapshot":
+				copy = findView(t, p, a.ID).Quota
+			case "account clone":
+				copy = cloneAccounts(p.accounts)[a.ID].quota
+			}
+			copy.Month.Remaining, copy.Month.Source = 999, "mutated"
+			*copy.MonthlyCredits = 999
+			*copy.SubscriptionPeriodEnd = time.Time{}
+			copy.Windows[0].Remaining = 999
+			stored := findView(t, p, a.ID).Quota
+			if stored.Month == nil || stored.Month.Remaining != 12 || stored.Month.Source != "plan_allowance" ||
+				stored.MonthlyCredits == nil || *stored.MonthlyCredits != 12 ||
+				stored.SubscriptionPeriodEnd == nil || stored.SubscriptionPeriodEnd.Format(time.RFC3339) != "2026-10-16T04:03:37Z" ||
+				stored.Windows[0].Remaining != 20 {
+				t.Fatalf("%s retained shared data: %+v", boundary, stored)
+			}
+		})
+	}
+	q := cloneQuota(Quota{})
+	if q.Month != nil || q.MonthlyCredits != nil || q.SubscriptionPeriodEnd != nil {
+		t.Fatal("copy invented absent display metadata")
+	}
+}
+
+func TestQuotaDisplayMetadataDoesNotAffectPickOrAcquire(t *testing.T) {
+	p, _ := testPool(t, time.Minute)
+	a := addAccount(t, p, "display-routing-synthetic-key", "owner", 1)
+	q := Quota{Headroom: 0.2, RemainingCredits: 17, UpdatedAt: time.Now()}
+	if err := p.ObserveQuota(a.ID, q); err != nil {
+		t.Fatal(err)
+	}
+	before := p.Pick([]string{a.AuthID}, "before-display", "model")
+	lease, err := p.Acquire(a.AuthID, "before-display", "model")
+	if err != nil {
+		t.Fatal(err)
+	}
+	lease.Settle("done")
+	monthly := 0.0
+	past := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	q.Month = &Window{Name: "month", Source: "plan_allowance", Used: 300, Cap: 300}
+	q.MonthlyCredits, q.SubscriptionPeriodEnd, q.SubscriptionStatus = &monthly, &past, "canceled"
+	if err := p.ObserveQuota(a.ID, q); err != nil {
+		t.Fatal(err)
+	}
+	after := p.Pick([]string{a.AuthID}, "after-display", "model")
+	if before.AuthID != after.AuthID || before.Reason != after.Reason || len(before.Candidates) != 1 || len(after.Candidates) != 1 || before.Candidates[0] != after.Candidates[0] {
+		t.Fatalf("display metadata changed scores: before=%+v after=%+v", before, after)
+	}
+	lease, err = p.Acquire(a.AuthID, "after-display", "model")
+	if err != nil {
+		t.Fatalf("display-only zero monthly balance, past period end or canceled status blocked admission: %v", err)
+	}
+	lease.Settle("done")
+	q.Headroom = 0
+	q.Month.Remaining = 300
+	if err := p.ObserveQuota(a.ID, q); err != nil {
+		t.Fatal(err)
+	}
+	if decision := p.Pick([]string{a.AuthID}, "exhausted-window", "model"); decision.AuthID != "" {
+		t.Fatal("display month overrode exhausted measured windows")
+	}
+	if _, err := p.Acquire(a.AuthID, "exhausted-window", "model"); !errors.Is(err, ErrQuotaUnavailable) {
+		t.Fatalf("display month overrode exhausted admission: %v", err)
+	}
+}
+
+func TestQuotaFailureClearsDisplayMetadataAndPreservesIdentity(t *testing.T) {
+	p, _ := testPool(t, time.Minute)
+	a := addAccount(t, p, "display-failure-synthetic-key", "owner", 1)
+	monthly := 12.0
+	periodEnd := time.Now().UTC()
+	q := Quota{Headroom: 0.2, RemainingCredits: 17, UpdatedAt: time.Now(), Identity: "org:known",
+		Month:          &Window{Name: "month", Source: "plan_allowance", Cap: 300, Remaining: 12},
+		MonthlyCredits: &monthly, SubscriptionPeriodEnd: &periodEnd, SubscriptionStatus: "active"}
+	if err := p.ObserveQuota(a.ID, q); err != nil {
+		t.Fatal(err)
+	}
+	q.Error = "synthetic failure"
+	if err := p.ObserveQuota(a.ID, q); !errors.Is(err, ErrInvalid) {
+		t.Fatal(err)
+	}
+	failed := findView(t, p, a.ID).Quota
+	if failed.Error != "quota_unavailable" || failed.Identity != "org:known" || failed.Month != nil || failed.MonthlyCredits != nil || failed.SubscriptionPeriodEnd != nil || failed.SubscriptionStatus != "" {
+		t.Fatalf("failure retained stale display data or lost identity: %+v", failed)
+	}
+}
+
+func TestQuotaInvalidDisplayMetricsAreDroppedWithoutChangingAdmission(t *testing.T) {
+	for _, field := range []string{"month used", "month cap", "month remaining", "monthly credits", "both"} {
+		for _, invalid := range []struct {
+			name  string
+			value float64
+		}{{"NaN", math.NaN()}, {"positive infinity", math.Inf(1)}, {"negative infinity", math.Inf(-1)}, {"negative", -1}} {
+			t.Run(field+"/"+invalid.name, func(t *testing.T) {
+				p, _ := testPool(t, time.Minute)
+				a := addAccount(t, p, "invalid-display-synthetic-key", "owner", 1)
+				monthly := 12.0
+				periodEnd := time.Now().UTC()
+				q := Quota{Headroom: 0.2, RemainingCredits: 17, UpdatedAt: time.Now(), Identity: "org:known",
+					Month:          &Window{Name: "month", Source: "plan_allowance", Used: 288, Cap: 300, Remaining: 12},
+					MonthlyCredits: &monthly, SubscriptionPeriodEnd: &periodEnd, SubscriptionStatus: "active",
+					Windows: []Window{{Name: "weekly", Used: 80, Cap: 100, Remaining: 20}}}
+				if err := p.ObserveQuota(a.ID, q); err != nil {
+					t.Fatal(err)
+				}
+				before := p.Pick([]string{a.AuthID}, "before-invalid-display", "model")
+				switch field {
+				case "month used":
+					q.Month.Used = invalid.value
+				case "month cap":
+					q.Month.Cap = invalid.value
+				case "month remaining":
+					q.Month.Remaining = invalid.value
+				case "monthly credits":
+					*q.MonthlyCredits = invalid.value
+				case "both":
+					q.Month.Remaining, *q.MonthlyCredits = invalid.value, invalid.value
+				}
+				if err := p.ObserveQuota(a.ID, q); err != nil {
+					t.Fatalf("invalid optional display metadata rejected valid measured quota: %v", err)
+				}
+				stored := findView(t, p, a.ID).Quota
+				if (stored.Month == nil) != (field != "monthly credits") || (stored.MonthlyCredits == nil) != (field == "monthly credits" || field == "both") {
+					t.Fatalf("did not drop only invalid display fields: %+v", stored)
+				}
+				if stored.Error != "" || stored.RemainingCredits != 17 || stored.Headroom != 0.2 || stored.Identity != "org:known" || stored.SubscriptionStatus != "active" || stored.SubscriptionPeriodEnd == nil || *stored.SubscriptionPeriodEnd != periodEnd || len(stored.Windows) != 1 || stored.Windows[0] != q.Windows[0] {
+					t.Fatalf("display sanitization changed trusted quota or other metadata: %+v", stored)
+				}
+				payload, err := json.Marshal(p.Snapshot())
+				if err != nil || (stored.Month == nil && bytes.Contains(payload, []byte(`"month":`))) || (stored.MonthlyCredits == nil && bytes.Contains(payload, []byte(`"monthly_credits":`))) {
+					t.Fatalf("snapshot JSON failed or retained invalid metadata: %s err=%v", payload, err)
+				}
+				after := p.Pick([]string{a.AuthID}, "after-invalid-display", "model")
+				if before.AuthID != after.AuthID || before.Reason != after.Reason || len(before.Candidates) != 1 || len(after.Candidates) != 1 || before.Candidates[0] != after.Candidates[0] {
+					t.Fatalf("invalid display metadata changed scores: before=%+v after=%+v", before, after)
+				}
+				lease, err := p.Acquire(a.AuthID, "after-invalid-display", "model")
+				if err != nil {
+					t.Fatalf("invalid display metadata changed admission: %v", err)
+				}
+				lease.Settle("done")
+			})
+		}
+	}
+}
+
+func TestQuotaDisplayMetadataSecretProtection(t *testing.T) {
+	for _, field := range []string{"month name", "month source", "window source", "subscription status"} {
+		t.Run(field, func(t *testing.T) {
+			p, _ := testPool(t, time.Minute)
+			a := addAccount(t, p, "display-current-synthetic-key", "owner", 1)
+			q := Quota{Headroom: 1, RemainingCredits: 10, UpdatedAt: time.Now(), Month: &Window{Name: "month", Source: "plan_allowance", Cap: 30, Remaining: 10}, Windows: []Window{{Name: "weekly", Cap: 100, Remaining: 100}}}
+			set := func(value string) {
+				switch field {
+				case "month name":
+					q.Month.Name = value
+				case "month source":
+					q.Month.Source = value
+				case "window source":
+					q.Windows[0].Source = value
+				case "subscription status":
+					q.SubscriptionStatus = value
+				}
+			}
+			futureKey := "display-future-synthetic-key"
+			set("metadata " + futureKey)
+			if err := p.ObserveQuota(a.ID, q); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := p.Upsert(AccountInput{Name: "new", GroupID: "new-owner", APIKey: futureKey, MaxConcurrency: 1}); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("new key matched %s metadata: %v", field, err)
+			}
+			for _, value := range []string{"metadata display-current-synthetic-key", strings.Repeat("x", 513)} {
+				set(value)
+				if err := p.ObserveQuota(a.ID, q); err != nil {
+					t.Fatal(err)
+				}
+				payload, err := json.Marshal(p.Snapshot())
+				if err != nil || bytes.Contains(payload, []byte(value)) || !bytes.Contains(payload, []byte("[redacted]")) {
+					t.Fatalf("%s was not bounded/redacted: %s err=%v", field, payload, err)
+				}
+			}
+			deletedKey := "display-deleted-synthetic-key"
+			deleted := addAccount(t, p, deletedKey, "deleted-owner", 1)
+			if err := p.Delete(deleted.ID); err != nil {
+				t.Fatal(err)
+			}
+			set("metadata " + deletedKey)
+			if err := p.ObserveQuota(a.ID, q); err != nil {
+				t.Fatal(err)
+			}
+			payload, err := json.Marshal(p.Snapshot())
+			if err != nil || bytes.Contains(payload, []byte(deletedKey)) || !bytes.Contains(payload, []byte("[redacted]")) {
+				t.Fatalf("%s leaked deleted secret: %s err=%v", field, payload, err)
+			}
+		})
+	}
+}
+
 func TestMetadataSecretRejectionAndHistoricalEventRedaction(t *testing.T) {
 	for _, field := range []string{"name", "group", "identity"} {
 		t.Run(field, func(t *testing.T) {

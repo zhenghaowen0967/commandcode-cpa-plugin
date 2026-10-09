@@ -30,6 +30,9 @@ func TestParsePoolCreditsSumAndMinimumWindows(t *testing.T) {
 	if quota.RemainingCredits != 17 || math.Abs(quota.Headroom-0.2) > 1e-12 {
 		t.Fatalf("quota=%+v, want 17 credits and minimum headroom 0.2", quota)
 	}
+	if quota.MonthlyCredits == nil || *quota.MonthlyCredits != 12 || quota.Month != nil {
+		t.Fatalf("monthly balance must remain separate from purchased/free, without inventing a plan: %+v", quota)
+	}
 	if len(quota.Windows) != 2 || quota.Windows[0].Remaining != 80 || quota.Windows[1].Remaining != 20 {
 		t.Fatalf("windows=%+v", quota.Windows)
 	}
@@ -180,6 +183,108 @@ func TestRefreshPoolQuotasRealHTTPAndIdentity(t *testing.T) {
 	}
 }
 
+func TestFetchPoolQuotaMonthlyDisplayPlanAllowance(t *testing.T) {
+	for _, tc := range []struct {
+		name, plan, wantPlan string
+		monthly, wantCap     float64
+	}{
+		{"ultra", "individual-ultra", "Ultra", 12, 300},
+		{"go", "individual-go", "Go", 4, 10},
+		{"goat", "individual-goat", "GOAT", 12, 70},
+		{"pro", "individual-pro", "Pro", 12, 30},
+		{"pro v1", "individual-pro-v1", "Pro", 12, 80},
+		{"provider", "individual-provider", "Provider", 12, 15},
+		{"max", "individual-max", "Max", 12, 150},
+		{"teams", "teams-pro", "Teams Pro", 12, 40},
+		{"normalized prefix", " Individual_Pro_V1_Annual ", "Pro", 12, 80},
+		{"zero monthly", "individual-ultra", "Ultra", 0, 300},
+		{"above static allowance", "individual-ultra", "Ultra", 350, 350},
+		{"unknown plan", " custom-plan ", "custom-plan", 12, 0},
+		{"unknown zero", "custom-plan", "custom-plan", 0, 0},
+		{"absent plan", "", "", 12, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			credits := strings.Replace(poolQuotaTestCredits, `"monthlyCredits":12`, fmt.Sprintf(`"monthlyCredits":%v`, tc.monthly), 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case accountCreditsPath:
+					_, _ = io.WriteString(w, credits)
+				case accountSubscriptionPath:
+					_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"planId": tc.plan, "status": " active ", "currentPeriodEnd": "2026-10-16T04:03:37.000Z"}})
+				default:
+					w.WriteHeader(http.StatusServiceUnavailable)
+				}
+			}))
+			defer server.Close()
+			quota, err := fetchPoolQuota(context.Background(), server.Client(), server.URL, time.Second, "synthetic-key")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if quota.MonthlyCredits == nil || *quota.MonthlyCredits != tc.monthly || quota.Plan != tc.wantPlan || quota.SubscriptionStatus != "active" {
+				t.Fatalf("quota=%+v want plan=%q monthly=%v", quota, tc.wantPlan, tc.monthly)
+			}
+			if tc.wantCap == 0 {
+				if quota.Month != nil {
+					t.Fatalf("unknown plan invented denominator: %+v", quota.Month)
+				}
+			} else if quota.Month == nil || quota.Month.Name != "month" || quota.Month.Source != "plan_allowance" || quota.Month.Cap != tc.wantCap || quota.Month.Remaining != tc.monthly || quota.Month.Used != math.Max(0, tc.wantCap-tc.monthly) || !quota.Month.ResetAt.IsZero() {
+				t.Fatalf("month=%+v want monthly-only remaining=%v cap=%v without assumed reset", quota.Month, tc.monthly, tc.wantCap)
+			}
+			if quota.RemainingCredits != tc.monthly+5 || math.Abs(quota.Headroom-0.2) > 1e-12 || len(quota.Windows) != 2 || quota.Windows[0].Name != "five_hour" || quota.Windows[1].Name != "weekly" {
+				t.Fatalf("display month changed measured quota: %+v", quota)
+			}
+		})
+	}
+}
+
+func TestFetchPoolQuotaSubscriptionPeriodEndNormalization(t *testing.T) {
+	for _, tc := range []struct {
+		name, raw, want string
+	}{
+		{"offset", `"2026-10-16T12:03:37+08:00"`, "2026-10-16T04:03:37Z"},
+		{"milliseconds", `"2026-10-16T04:03:37.123Z"`, "2026-10-16T04:03:37Z"},
+		{"date", `"2026-10-16"`, "2026-10-16T00:00:00Z"},
+		{"no timezone", `"2026-10-16T04:03:37"`, "2026-10-16T04:03:37Z"},
+		{"past", `"2000-01-01T00:00:00Z"`, "2000-01-01T00:00:00Z"},
+		{"absent", "", ""},
+		{"null", "null", ""},
+		{"empty", `""`, ""},
+		{"invalid", `"not-a-date"`, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dateField := ""
+			if tc.raw != "" {
+				dateField = `,"currentPeriodEnd":` + tc.raw
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case accountCreditsPath:
+					_, _ = io.WriteString(w, poolQuotaTestCredits)
+				case accountSubscriptionPath:
+					_, _ = io.WriteString(w, `{"success":true,"data":{"planId":"individual-ultra","status":"active"`+dateField+`}}`)
+				default:
+					w.WriteHeader(http.StatusServiceUnavailable)
+				}
+			}))
+			defer server.Close()
+			quota, err := fetchPoolQuota(context.Background(), server.Client(), server.URL, time.Second, "synthetic-key")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.want == "" {
+				if quota.SubscriptionPeriodEnd != nil {
+					t.Fatalf("invented period end: %v", quota.SubscriptionPeriodEnd)
+				}
+			} else if quota.SubscriptionPeriodEnd == nil || quota.SubscriptionPeriodEnd.Format(time.RFC3339) != tc.want || quota.SubscriptionPeriodEnd.Location() != time.UTC {
+				t.Fatalf("period end=%v want %s UTC", quota.SubscriptionPeriodEnd, tc.want)
+			}
+			if quota.Month == nil || !quota.Month.ResetAt.IsZero() || quota.Headroom == 0 || quota.SubscriptionStatus != "active" {
+				t.Fatalf("date changed monthly reset, routing, or subscription status: %+v", quota)
+			}
+		})
+	}
+}
+
 func TestRefreshPoolQuotasUsesConfiguredProxyAndCLIUserAgent(t *testing.T) {
 	var mu sync.Mutex
 	seen := make(map[string]int)
@@ -250,23 +355,128 @@ func TestFetchPoolQuotaIdentityOnlyActualStableIDs(t *testing.T) {
 }
 
 func TestRefreshPoolQuotasMetadataFailurePreservesCreditsAndKnownIdentity(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == accountCreditsPath {
-			_, _ = io.WriteString(w, poolQuotaTestCredits)
-		} else {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = io.WriteString(w, "synthetic-quota-key-0")
-		}
-	}))
-	defer server.Close()
-	m, accounts := newPoolQuotaTestManager(t, server.URL, 1)
-	m.pool.ObserveQuota(accounts[0].ID, pool.Quota{Identity: "org:already-known", UpdatedAt: time.Now()})
-	if err := m.refreshPoolQuotas(context.Background(), ""); err != nil {
-		t.Fatal(err)
+	for _, body := range []string{"HTTP failure", "invalid JSON", `{"success":false,"data":{"planId":"individual-ultra"}}`, `{"success":true,"data":{"planId":"individual-ultra","currentPeriodEnd":42}}`} {
+		t.Run(body, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == accountCreditsPath {
+					_, _ = io.WriteString(w, poolQuotaTestCredits)
+				} else if body == "HTTP failure" || r.URL.Path != accountSubscriptionPath {
+					w.WriteHeader(http.StatusServiceUnavailable)
+					_, _ = io.WriteString(w, "synthetic-quota-key-0")
+				} else {
+					_, _ = io.WriteString(w, body)
+				}
+			}))
+			defer server.Close()
+			m, accounts := newPoolQuotaTestManager(t, server.URL, 1)
+			monthly := 99.0
+			periodEnd := time.Now().UTC()
+			if err := m.pool.ObserveQuota(accounts[0].ID, pool.Quota{Identity: "org:already-known", UpdatedAt: time.Now(), Plan: "old-plan", Email: "old@example.invalid",
+				Month: &pool.Window{Name: "month", Source: "plan_allowance", Cap: 300, Remaining: 99}, MonthlyCredits: &monthly,
+				SubscriptionPeriodEnd: &periodEnd, SubscriptionStatus: "old-status"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := m.refreshPoolQuotas(context.Background(), ""); err != nil {
+				t.Fatal(err)
+			}
+			quota := poolQuotaByID(t, m, accounts[0].ID)
+			if quota.Error != "" || quota.RemainingCredits != 17 || quota.Headroom == 0 || quota.Identity != "org:already-known" || quota.MonthlyCredits == nil || *quota.MonthlyCredits != 12 {
+				t.Fatalf("metadata failure destroyed real quota or known identity: %+v", quota)
+			}
+			if quota.Month != nil || quota.SubscriptionPeriodEnd != nil || quota.SubscriptionStatus != "" || quota.Plan != "" || quota.Email != "" {
+				t.Fatalf("metadata failure claimed stale display data was fresh: %+v", quota)
+			}
+		})
 	}
-	quota := poolQuotaByID(t, m, accounts[0].ID)
-	if quota.Error != "" || quota.RemainingCredits != 17 || quota.Headroom == 0 || quota.Identity != "org:already-known" {
-		t.Fatalf("metadata failure destroyed real quota or known identity: %+v", quota)
+}
+
+func TestPoolQuotaDisplayJSONEndToEnd(t *testing.T) {
+	for _, tc := range []struct {
+		name, plan, status, date, wantStatus string
+		wantMonth                            bool
+	}{
+		{"known plan", "individual-ultra", "active", "2026-10-16T12:03:37+08:00", "active", true},
+		{"unknown plan", "custom-plan", "", "", "", false},
+		{"secret status", "individual-ultra", "synthetic-quota-key-0", "", "[redacted]", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case accountCreditsPath:
+					_, _ = io.WriteString(w, strings.Replace(poolQuotaTestCredits, `"monthlyCredits":12`, `"monthlyCredits":0`, 1))
+				case accountSubscriptionPath:
+					_ = json.NewEncoder(w).Encode(map[string]any{"success": true, "data": map[string]any{"planId": tc.plan, "status": tc.status, "currentPeriodEnd": tc.date}})
+				case "/alpha/whoami":
+					_, _ = io.WriteString(w, `{"success":true,"org":{"id":"json-org"},"user":{"email":"json@example.invalid"}}`)
+				default:
+					t.Errorf("unexpected test endpoint %s", r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+			m, accounts := newPoolQuotaTestManager(t, server.URL, 1)
+			for _, endpoint := range []string{"/quota/refresh", "/accounts"} {
+				method, body := http.MethodGet, ""
+				if endpoint == "/quota/refresh" {
+					method, body = http.MethodPost, `{}`
+				}
+				resp := callPoolManagement(t, m, method, endpoint, body)
+				if resp.StatusCode != http.StatusOK || strings.Contains(string(resp.Body), "synthetic-quota-key-0") {
+					t.Fatalf("management response failed or leaked secret: %d %s", resp.StatusCode, resp.Body)
+				}
+				var decoded struct {
+					Accounts []struct {
+						Quota map[string]json.RawMessage `json:"quota"`
+					} `json:"accounts"`
+				}
+				if err := json.Unmarshal(resp.Body, &decoded); err != nil || len(decoded.Accounts) != 1 {
+					t.Fatalf("invalid management JSON: %s err=%v", resp.Body, err)
+				}
+				q := decoded.Accounts[0].Quota
+				if string(q["monthly_credits"]) != "0" || string(q["remaining_credits"]) != "5" {
+					t.Fatalf("zero monthly must be present and exclude purchased/free: %s", resp.Body)
+				}
+				monthRaw, hasMonth := q["month"]
+				if hasMonth != tc.wantMonth {
+					t.Fatalf("month presence=%v want=%v: %s", hasMonth, tc.wantMonth, resp.Body)
+				}
+				if hasMonth {
+					var month pool.Window
+					if err := json.Unmarshal(monthRaw, &month); err != nil || month.Name != "month" || month.Source != "plan_allowance" || month.Cap != 300 || month.Used != 300 || month.Remaining != 0 || !month.ResetAt.IsZero() {
+						t.Fatalf("invalid monthly display JSON: %s err=%v", monthRaw, err)
+					}
+				}
+				if statusRaw, exists := q["subscription_status"]; tc.wantStatus == "" {
+					if exists {
+						t.Fatalf("absent status not omitted: %s", resp.Body)
+					}
+				} else {
+					var status string
+					if err := json.Unmarshal(statusRaw, &status); err != nil || status != tc.wantStatus {
+						t.Fatalf("status=%q want=%q err=%v", status, tc.wantStatus, err)
+					}
+				}
+				if dateRaw, exists := q["subscription_period_end"]; tc.date == "" {
+					if exists {
+						t.Fatalf("absent date not omitted: %s", resp.Body)
+					}
+				} else if string(dateRaw) != `"2026-10-16T04:03:37Z"` {
+					t.Fatalf("date not normalized: %s", dateRaw)
+				}
+				var windows []pool.Window
+				if err := json.Unmarshal(q["windows"], &windows); err != nil || len(windows) != 2 || windows[0].Name != "five_hour" || windows[1].Name != "weekly" || strings.Contains(string(q["windows"]), `"source"`) {
+					t.Fatalf("monthly display mixed into existing windows or empty source not omitted: %s err=%v", q["windows"], err)
+				}
+				var headroom float64
+				if err := json.Unmarshal(q["headroom"], &headroom); err != nil || math.Abs(headroom-0.2) > 1e-12 {
+					t.Fatalf("management display changed routing headroom: %v err=%v", headroom, err)
+				}
+			}
+			decision := m.pool.Pick([]string{accounts[0].AuthID}, "json-display", "model")
+			if decision.AuthID != accounts[0].AuthID {
+				t.Fatalf("zero monthly balance changed eligibility: %+v", decision)
+			}
+		})
 	}
 }
 
@@ -299,6 +509,54 @@ func TestRefreshPoolQuotasFailedSnapshotOnlyAffectedAccount(t *testing.T) {
 		} else if quota.Error != "" || quota.RemainingCredits != 17 || quota.Headroom == 0 {
 			t.Fatalf("failure reset another account: %+v", quota)
 		}
+	}
+}
+
+func TestPoolQuotaSecretStatusPreservesExistingKeyUpdateAndImport(t *testing.T) {
+	m := newPoolHandlerManager(t)
+	key := "existing-display-status-synthetic-key"
+	a := addPoolHandlerAccount(t, m, key, "original", "owner")
+	q := pool.Quota{Headroom: 0.2, RemainingCredits: 17, UpdatedAt: time.Now(), SubscriptionStatus: "echo " + key}
+	if err := m.pool.ObserveQuota(a.ID, q); err != nil {
+		t.Fatal(err)
+	}
+	for _, request := range []struct {
+		endpoint string
+		input    pool.AccountInput
+	}{
+		{"/accounts", pool.AccountInput{ID: a.ID, APIKey: key, Name: "updated", GroupID: a.GroupID, MaxConcurrency: 3}},
+		{"/accounts/import", pool.AccountInput{APIKey: key, Name: "imported", GroupID: a.GroupID, MaxConcurrency: 4}},
+		{"/accounts/import", pool.AccountInput{APIKey: key, Name: "imported", GroupID: a.GroupID, MaxConcurrency: 4}},
+	} {
+		var input any = request.input
+		if request.endpoint == "/accounts/import" {
+			input = map[string]any{"accounts": []pool.AccountInput{request.input}}
+		}
+		body, err := json.Marshal(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp := callPoolManagement(t, m, http.MethodPost, request.endpoint, string(body))
+		if resp.StatusCode != http.StatusOK || strings.Contains(string(resp.Body), key) || !strings.Contains(string(resp.Body), "echo [redacted]") {
+			t.Fatalf("existing-key %s failed or leaked status: %d %s", request.endpoint, resp.StatusCode, resp.Body)
+		}
+		accounts := m.pool.Snapshot()
+		if len(accounts) != 1 || accounts[0].ID != a.ID || accounts[0].Name != request.input.Name || accounts[0].MaxConcurrency != request.input.MaxConcurrency || accounts[0].Quota.SubscriptionStatus != "echo [redacted]" {
+			t.Fatalf("same-key operation was not an idempotent update: %+v", accounts)
+		}
+	}
+	futureKey := "new-display-status-synthetic-key"
+	q.SubscriptionStatus = "echo " + futureKey
+	if err := m.pool.ObserveQuota(a.ID, q); err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(pool.AccountInput{APIKey: futureKey, Name: "new", GroupID: "new-owner", MaxConcurrency: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp := callPoolManagement(t, m, http.MethodPost, "/accounts", string(body))
+	if resp.StatusCode != http.StatusBadRequest || len(m.pool.Snapshot()) != 1 || strings.Contains(string(resp.Body), futureKey) {
+		t.Fatalf("truly new key bypassed display metadata conflict protection: %d %s", resp.StatusCode, resp.Body)
 	}
 }
 
