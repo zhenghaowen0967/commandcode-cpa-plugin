@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>CommandCode 账号池</title>
+<style>
+:root{--bg:var(--app-bg,#101722);--surface:var(--app-surface,#162131);--raised:var(--app-surface-muted,#1c2b40);--line:var(--border-color,#30435b);--text:var(--text-primary,#edf3fc);--muted:var(--text-secondary,#afbed1);--blue:var(--primary-color,#83b8ff);--action:var(--primary-solid,var(--primary-color,#2563ce));--good:var(--data-badge-success-text,#a2debd);--warn:var(--data-badge-warning-text,#ffd18d);--bad:var(--data-badge-danger-text,#ffacb5);--radius:12px;font-family:"Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.6}
+:root:not([data-cpamp-plugin-host='true']){color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}button,input,textarea,select{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}button,input,textarea,select{border:1px solid var(--line);border-radius:7px;background:var(--raised);color:var(--text)}button{padding:8px 13px;font-weight:600;white-space:nowrap}button:hover:not(:disabled){border-color:var(--blue)}button.primary{background:var(--action);border-color:var(--action);color:var(--primary-contrast,#fff)}button.danger{color:var(--bad)}button.small{padding:5px 9px;font-size:12px}input,select{padding:9px 11px;width:100%;min-width:0}textarea{padding:11px;width:100%;resize:vertical}input[type=checkbox]{width:18px;height:18px;accent-color:var(--blue)}:focus-visible{outline:2px solid var(--blue);outline-offset:3px}[hidden]{display:none!important}h1,h2,h3,p{margin:0}h1{font-size:28px;line-height:1.25;letter-spacing:-.03em}h2{font-size:18px;font-weight:650}h3{font-size:15px}.muted{color:var(--muted)}.tiny{font-size:12px}.mono{font-family:"SFMono-Regular",Consolas,monospace;font-variant-numeric:tabular-nums}.wrap{overflow-wrap:anywhere}.good{color:var(--good)}.warning{color:var(--warn)}.error{color:var(--bad)}.shell{max-width:1480px;margin:auto;padding:34px 32px 50px;min-width:0}.masthead{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:25px}.brand{display:flex;align-items:center;gap:15px}.brand-mark{width:44px;height:44px;background:var(--action);color:var(--primary-contrast,#fff);border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:22px}.intro{margin-top:8px;max-width:75ch;color:var(--muted)}.connection-state{display:inline-flex;align-items:center;gap:8px;font-size:13px}.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}.connected .dot{background:var(--good)}.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:20px;min-width:0}.connect-panel{padding:19px 22px}.connect-grid{display:grid;grid-template-columns:minmax(200px,1fr) auto;gap:12px;align-items:end}.connect-grid label{display:grid;gap:6px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.connection-actions{display:flex;gap:8px}.notice{margin-top:12px;color:var(--muted);font-size:12px;max-width:95ch}.scope{margin-top:13px;padding-top:12px;border-top:1px solid var(--line);display:flex;gap:8px 20px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.banner{padding:13px 17px;margin-bottom:16px;border:1px solid var(--line);border-left:3px solid var(--blue);background:var(--surface);border-radius:7px;overflow-wrap:anywhere}.banner.error{border-left-color:var(--bad)}.banner.warning{border-left-color:var(--warn)}.panel-header{padding:19px 22px;display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}.panel-title p{margin-top:4px;font-size:12px;color:var(--muted)}.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.toolbar input{width:230px}.table-scroll{max-width:100%;overflow-x:auto;border-top:1px solid var(--line);overscroll-behavior-x:contain}table{width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums}table.accounts{min-width:1080px}table.groups{min-width:620px}th{font-size:12px;font-weight:500;color:var(--muted);padding:11px 18px;background:var(--raised);white-space:nowrap}td{padding:15px 18px;border-top:1px solid var(--line);vertical-align:top;font-size:13px}tbody tr:hover{background:var(--raised)}.name{font-weight:650;font-size:14px}.sub{font-size:11px;color:var(--muted);margin-top:4px;max-width:240px;overflow-wrap:anywhere}.badge{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:1px 7px;font-size:11px;white-space:nowrap}.badge.good{border-color:#466956}.badge.warning{border-color:#786349}.badge.error{border-color:#77515e}.empty{padding:36px 22px;text-align:center;color:var(--muted);max-width:100%}.panel-footer{padding:11px 22px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}details summary{cursor:pointer;color:var(--blue);font-size:12px;width:fit-content}details[open] summary{margin-bottom:9px}.quota-details{margin-top:7px;max-width:280px}.window{border-top:1px solid var(--line);padding:7px 0;font-size:12px}.window:first-child{border-top:0}.events{padding:0 22px 16px}.event{border-top:1px solid var(--line);padding:14px 0}.event-head{display:flex;gap:10px 18px;align-items:baseline;flex-wrap:wrap}.event-meta{display:flex;gap:8px 18px;flex-wrap:wrap;margin:6px 0;font-size:12px;color:var(--muted);overflow-wrap:anywhere}.event-reason{font-size:13px;overflow-wrap:anywhere;max-width:100ch;margin-bottom:7px}.candidate-table{min-width:860px}.candidate-table th,.candidate-table td{padding:8px 12px;font-size:12px}.event details .table-scroll{border:1px solid var(--line);border-radius:7px}.page-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12px}dialog{width:min(650px,calc(100% - 28px));max-height:90dvh;overflow:auto;margin:auto;padding:0;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--text)}dialog::backdrop{background:rgba(4,10,19,.75)}.dialog-head{padding:22px 24px 15px;display:flex;justify-content:space-between;align-items:center;gap:10px}.dialog-body{padding:0 24px 22px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.field{display:grid;gap:6px;font-size:13px}.field.full{grid-column:1/-1}.check-label{display:flex;align-items:center;gap:9px}.help{font-size:12px;color:var(--muted)}.dialog-actions{margin-top:22px;display:flex;justify-content:flex-end;gap:10px}.form-error{margin-top:14px;color:var(--bad);font-size:13px;overflow-wrap:anywhere}.masked{-webkit-text-security:disc;font-family:Consolas,monospace;caret-color:var(--blue)}.import-example{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--raised);border:1px solid var(--line);border-radius:7px;padding:12px;font-size:12px;color:var(--muted);margin:12px 0}.import-result{padding:14px 22px;border-top:1px solid var(--line);font-size:13px;overflow-wrap:anywhere}.import-result ul{margin:7px 0;padding-left:20px}fieldset{border:0;padding:0;margin:0;min-width:0}body.dialog-open{overflow:hidden}@media(max-width:780px){.shell{padding:22px 16px 35px}.masthead{align-items:flex-start;gap:14px}.brand-mark{display:none}h1{font-size:24px}.connect-grid{grid-template-columns:1fr}.connection-actions{flex-wrap:wrap}.connect-panel,.panel-header{padding:16px}.toolbar{width:100%}.toolbar input{width:100%}.toolbar button{flex:1}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.events{padding:0 16px 14px}.dialog-head{padding:18px 18px 14px}.dialog-body{padding:0 18px 18px}.table-scroll{width:100%}.event-head .mono{font-size:11px}.connection-state{white-space:nowrap}.intro{font-size:13px}.scope{display:grid;gap:5px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="masthead">
+  <div><div class="brand"><span class="brand-mark" aria-hidden="true">C</span><h1>CommandCode 账号池</h1></div><p class="intro">管理账号 Key、核对真实额度，追踪每次请求的调度依据。</p></div>
+  <span id="connectionState" class="connection-state"><span class="dot" aria-hidden="true"></span><span id="connectionLabel">未连接</span></span>
+</header>
+<section class="panel connect-panel" aria-label="管理连接">
+  <form id="connectionForm" autocomplete="off">
+    <div class="connect-grid"><label for="managementKey">CPAMP 管理 Key<input id="managementKey" type="password" autocomplete="off" spellcheck="false" placeholder="输入当前 CPAMP 的管理 Key" required></label><div class="connection-actions"><button id="connectButton" class="primary" type="submit">连接管理 API</button><button id="disconnectButton" type="button" disabled>断开并清空</button><button id="pollButton" type="button" disabled>暂停轮询</button><button id="reloadButton" type="button" disabled>立即同步</button></div></div>
+  </form>
+  <p class="notice">仅访问当前 CPAMP 的同源管理 API。管理 Key 不写入浏览器存储；连接后输入框立即清空。断开会清除本页账号、事件和所有凭据。</p>
+  <div class="scope" id="scopeInfo"><span>作用范围：连接后读取</span><span>每 5 秒同步账号与事件；真实额度由后端缓存返回</span></div>
+</section>
+<div id="message" class="banner" role="status" aria-live="polite" hidden></div>
+<div id="syncError" class="banner error" role="alert" hidden></div>
+<div id="scopeWarning" class="banner warning" role="status" hidden></div>
+<div id="quotaWarning" class="banner warning" role="status" hidden></div>
+<section class="panel" aria-labelledby="accountsTitle">
+  <div class="panel-header"><div class="panel-title"><h2 id="accountsTitle">账号与额度</h2><p id="accountSummary">连接后查看账号。编辑时 Key 留空会保留原值，API 不返回明文。</p></div><fieldset id="accountToolbar" disabled><div class="toolbar"><input id="accountFilter" aria-label="筛选账号" placeholder="搜索名称、分组或账号 ID"><button id="refreshAllButton" type="button">刷新真实额度</button><button id="importButton" type="button">批量导入</button><button id="addButton" type="button" class="primary">新增账号</button></div></fieldset></div>
+  <div class="table-scroll" tabindex="0" aria-label="账号表格，可横向滚动"><table class="accounts"><thead><tr><th scope="col">账号 / Key 指纹</th><th scope="col">真实账号分组</th><th scope="col">剩余 credits</th><th scope="col">窗口余量 / 额度详情</th><th scope="col">在途 / 组共享 cap</th><th scope="col">状态 / 额度更新时间</th><th scope="col">操作</th></tr></thead><tbody id="accountRows"></tbody></table></div>
+  <p id="accountEmpty" class="empty">尚未连接。输入管理 Key 后开始。</p>
+  <div id="importResult" class="import-result" role="status" aria-live="polite" hidden></div>
+  <div class="panel-footer">同一个真实账号的多个 Key 必须使用相同 group_id，共享一个并发 cap。额度是后端真实快照，不将同组多 Key 的余额重复相加。</div>
+</section>
+<section class="panel" aria-labelledby="groupsTitle">
+  <div class="panel-header"><div class="panel-title"><h2 id="groupsTitle">共享分组</h2><p>后端在每个 Key 上返回相同的组共享在途数；同组只计一次，不累加。cap 属于整组。</p></div></div>
+  <div class="table-scroll" tabindex="0" aria-label="共享分组表格，可横向滚动"><table class="groups"><thead><tr><th scope="col">group_id</th><th scope="col">Key 数 / 启用数</th><th scope="col">组在途</th><th scope="col">共享并发 cap</th><th scope="col">配置检查</th></tr></thead><tbody id="groupRows"></tbody></table></div><p id="groupEmpty" class="empty">连接后显示真实账号分组。</p>
+</section>
+<section class="panel" aria-labelledby="eventsTitle">
+  <div class="panel-header"><div class="panel-title"><h2 id="eventsTitle">真实请求</h2><p id="eventSummary">每个请求一行，显示实际账号、结果与选号原因，不展示请求正文。</p></div><button id="clearEventsButton" type="button" disabled>清空本页请求</button></div><div id="eventRows" class="events"></div><p id="eventEmpty" class="empty">暂无真实账号池请求。额度刷新和后台通知不在这里显示。</p><div class="panel-footer">本页最多保留 500 个请求，每个请求最多 50 条技术记录；后端保留最近 500 条请求过程记录，较早过程可能不完整。清空不删除后端记录，也不重置游标。</div>
+</section>
+<footer class="page-foot"><span>CommandCode / CPAMP 同源管理工作台</span><span id="lastSync">尚未同步</span></footer>
+</div>
+<dialog id="accountDialog" aria-labelledby="accountDialogTitle">
+  <div class="dialog-head"><h2 id="accountDialogTitle">新增账号</h2><button class="small" id="closeAccountButton" type="button" aria-label="关闭账号表单">关闭</button></div>
+  <form id="accountForm" class="dialog-body" autocomplete="off"><fieldset id="accountFields"><div class="form-grid">
+    <label class="field">账号名称<input id="accountName" required maxlength="160" autocomplete="off"></label>
+    <label class="field">真实账号 group_id<input id="accountGroup" required maxlength="160" autocomplete="off" list="knownGroups"></label><datalist id="knownGroups"></datalist>
+    <label class="field">整组共享并发 cap<input id="accountLimit" type="number" min="1" step="1" required></label>
+    <label class="field">账号开关<span class="check-label"><input id="accountEnabled" type="checkbox" checked>启用此 Key</span></label>
+    <label class="field full">账号 API Key<input id="accountKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="新增时必填；编辑留空保留原 Key"></label>
+    <p class="help field full">同一真实账号的多个 Key 共享一个 group_id。请勿为每个 Key 建不同组以绕开共享限制。</p>
+    <p id="groupCapHint" class="help field full">cap 设置作用于整个真实账号分组。同组配置必须一致。</p>
+  </div></fieldset><p id="accountFormError" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button id="cancelAccountButton" type="button">取消</button><button id="saveAccountButton" type="submit" class="primary">保存账号</button></div></form>
+</dialog>
+<dialog id="importDialog" aria-labelledby="importDialogTitle">
+  <div class="dialog-head"><h2 id="importDialogTitle">批量导入账号 Key</h2><button class="small" id="closeImportButton" type="button" aria-label="关闭导入表单">关闭</button></div>
+  <form id="importForm" class="dialog-body" autocomplete="off"><p class="help">粘贴 JSON 数组或 {"accounts": [...]}。同一真实账号下多个 Key 使用同一个 group_id，max_concurrency 必须相同；已有账号可带 id 更新。</p><pre class="import-example">[
+  {"name":"账号 A · Key 1","group_id":"real-account-a","api_key":"替换为 Key 1","max_concurrency":4},
+  {"name":"账号 A · Key 2","group_id":"real-account-a","api_key":"替换为 Key 2","max_concurrency":4}
+]</pre><label class="field">账号 JSON（输入遮蔽，不保存）<textarea id="importJSON" class="masked" rows="8" autocomplete="off" spellcheck="false" required aria-describedby="importSecretHint"></textarea></label><p id="importSecretHint" class="help">发送时立即清空输入。遮蔽不受浏览器支持时内容可能可见；请勿在共享屏幕下粘贴。后端可能部分成功，请核对每一条导入结果，不要盲目重复整批。</p><p id="importFormError" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button id="cancelImportButton" type="button">取消</button><button id="submitImportButton" type="submit" class="primary">导入账号</button></div></form>
+</dialog>
+<script>
+(() => {
+  'use strict';
+  const API_BASE = '/v0/management/plugins/commandcode-pool';
+  const ENDPOINTS = new Set(['accounts', 'accounts/import', 'accounts/delete', 'quota/refresh', 'events', 'status']);
+  const POLL_INTERVAL = 5000;
+  const EVENT_LIMIT = 500;
+  const DETAIL_LIMIT = 50;
+  const REQUEST_ACTIONS = new Set(['pick', 'acquire', 'acquire_rejected', 'settle', 'quarantined']);
+  const COMPLETE_REASONS = new Set(['upstream_complete', 'done', 'complete', 'completed']);
+  const CANCELED_REASONS = new Set(['upstream_canceled', 'canceled', 'cancelled']);
+  const $ = (id) => document.getElementById(id);
+  let managementKey = '';
+  let connected = false;
+  let generation = 0;
+  let timer = null;
+  let paused = false;
+  let syncing = false;
+  let mutating = false;
+  let editingID = '';
+  let accounts = [];
+  let events = [];
+  let cursor = '0';
+  let status = null;
+  const controllers = new Set();
+  const text = (value) => String(value == null ? '—' : value).split(managementKey || '\u0000').join(managementKey ? '[已隐藏]' : '\u0000');
+  function el(tag, value, className) {
+    const node = document.createElement(tag);
+    if (value !== undefined) node.textContent = text(value);
+    if (className) node.className = className;
+    return node;
+  }
+  function show(id, value, kind) {
+    const node = $(id);
+    node.textContent = text(value);
+    node.hidden = !value;
+    if (kind) node.className = 'banner ' + kind;
+  }
+  function number(value) {
+    return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('zh-CN', {maximumFractionDigits: 4}) : '—';
+  }
+  function timestamp(value) {
+    const date = new Date(value);
+    return !value || !Number.isFinite(date.getTime()) || date.getFullYear() < 2000 ? '尚无快照' : date.toLocaleString('zh-CN', {hour12: false});
+  }
+  function quotaStale(quota) {
+    const at = new Date(quota && quota.updated_at).getTime();
+    const maxAge = status && status.quota_max_age_seconds;
+    return !Number.isFinite(at) || at <= 0 || new Date(at).getFullYear() < 2000 || !Number.isFinite(maxAge) || maxAge <= 0 || Date.now() - at > maxAge * 1000;
+  }
+  function alive(version) { return connected && generation === version; }
+  function setControls() {
+    $('managementKey').disabled = connected;
+    $('connectButton').disabled = connected;
+    $('disconnectButton').disabled = !connected;
+    $('pollButton').disabled = !connected;
+    $('pollButton').textContent = paused ? '恢复轮询' : '暂停轮询';
+    $('reloadButton').disabled = !connected || syncing || mutating;
+    $('accountToolbar').disabled = !connected || mutating || syncing;
+    $('clearEventsButton').disabled = !connected;
+    $('saveAccountButton').disabled = !connected || mutating || syncing;
+    $('submitImportButton').disabled = !connected || mutating || syncing;
+    $('accountFields').disabled = mutating;
+    $('importJSON').disabled = mutating;
+    $('connectionState').className = 'connection-state' + (connected ? ' connected' : '');
+    $('connectionLabel').textContent = connected ? (paused ? '已连接 · 轮询暂停' : '已连接 · 5 秒同步') : '未连接';
+    for (const button of document.querySelectorAll('[data-account-action]')) button.disabled = !connected || mutating || syncing;
+  }
+  async function api(endpoint, method = 'GET', body, after) {
+    if (!connected || !managementKey) throw new Error('连接已断开。');
+    if (!ENDPOINTS.has(endpoint)) throw new Error('管理接口不在允许列表中。');
+    let url = API_BASE + '/' + endpoint;
+    if (endpoint === 'events') {
+      if (!/^\d+$/.test(String(after))) throw new Error('事件游标无效。');
+      url += '?scope=requests&after=' + encodeURIComponent(String(after));
+    }
+    const controller = new AbortController();
+    controllers.add(controller);
+    let timedOut = false;
+    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 20000);
+    try {
+      const response = await fetch(url, {
+        method, headers: {'Authorization': 'Bearer ' + managementKey, 'Content-Type': 'application/json'},
+        body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal,
+        credentials: 'same-origin', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer'
+      });
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          const error = new Error('管理 Key 无效或没有权限（HTTP ' + response.status + '）。请重新连接。');
+          error.authenticationFailed = true; throw error;
+        }
+        throw new Error('管理 API 返回 HTTP ' + response.status + '。请检查 CPAMP 与插件状态。');
+      }
+      // 以字符串保留 uint64 游标，避免浏览器数值精度造成漏读。
+      const raw = await response.text();
+      return JSON.parse(raw.replace(/"(sequence|next_cursor)"\s*:\s*(\d+)/g, '"$1":"$2"'));
+    } catch (error) {
+      if (timedOut) throw new Error('管理 API 超过 20 秒未响应。请检查 CPAMP 与插件状态；写操作超时后先同步核对，不要直接重试。');
+      if (error.name === 'AbortError') throw error;
+      if (error instanceof TypeError || error instanceof SyntaxError) throw new Error('管理 API 连接失败或响应不是有效 JSON。检查同源页面、网络与插件是否已加载。');
+      throw error;
+    } finally { clearTimeout(timeout); controllers.delete(controller); }
+  }
+  function renderStatus() {
+    const info = $('scopeInfo');
+    info.replaceChildren();
+    if (!status) { info.append(el('span', '作用范围：尚未读取')); return; }
+    info.append(el('span', '插件版本：' + text(status.plugin_version)), el('span', '作用范围：' + (status.scope === 'single_process' ? '单进程' : text(status.scope))), el('span', '额度快照有效期：' + number(status.quota_max_age_seconds) + ' 秒'), el('span', '默认共享 cap：' + number(status.default_limit)));
+    if (status.home_supported === false) info.append(el('span', 'Home 聚合：未支持'));
+    show('scopeWarning', status.scope === 'single_process' ? '单进程范围：在途计数和调度事件仅属于当前 CPA 进程，不代表其他实例；多实例运行时不能视为全局共享并发上限。' : '当前作用范围不是预期的 single_process，请核对插件版本与返回合同。', 'warning');
+  }
+  function groups() {
+    const result = new Map();
+    for (const account of accounts) {
+      let group = result.get(account.group_id);
+      if (!group) { group = {id: account.group_id, accounts: [], inflight: null, inflightValues: new Set(), limits: new Set()}; result.set(account.group_id, group); }
+      group.accounts.push(account);
+      // 接口返回组共享计数；同组多 Key 不得重复累加。
+      const inflight = Number.isSafeInteger(account.inflight) && account.inflight >= 0 ? account.inflight : null;
+      group.inflightValues.add(inflight);
+      if (inflight !== null) group.inflight = group.inflight === null ? inflight : Math.max(group.inflight, inflight);
+      group.limits.add(account.max_concurrency);
+    }
+    return result;
+  }
+  function renderGroups(groupMap) {
+    $('groupRows').replaceChildren();
+    $('knownGroups').replaceChildren();
+    for (const group of groupMap.values()) {
+      const row = el('tr');
+      const limit = group.limits.size === 1 ? group.accounts[0].max_concurrency : null;
+      const inflightMismatch = group.inflightValues.size !== 1 || group.inflightValues.has(null);
+      const checks = [limit === null ? '警告：同组 cap 不一致' : '同组 cap 一致'];
+      if (inflightMismatch) checks.push('警告：组共享在途快照不一致或缺失，显示已知最大值');
+      row.append(el('td', group.id, 'mono wrap'), el('td', group.accounts.length + ' / ' + group.accounts.filter(a => a.enabled).length), el('td', number(group.inflight)), el('td', limit === null ? '不一致' : number(limit)), el('td', checks.join('；'), limit === null || inflightMismatch ? 'warning' : 'muted'));
+      $('groupRows').append(row);
+      const option = el('option'); option.value = group.id; $('knownGroups').append(option);
+    }
+    $('groupEmpty').hidden = groupMap.size > 0;
+    $('groupEmpty').textContent = connected ? '尚无分组。新增账号时填写真实账号 group_id。' : '连接后显示真实账号分组。';
+  }
+  function actionButton(label, callback, danger) {
+    const button = el('button', label, 'small' + (danger ? ' danger' : ''));
+    button.type = 'button'; button.dataset.accountAction = 'true'; button.disabled = mutating || syncing || !connected;
+    button.addEventListener('click', callback); return button;
+  }
+  function renderAccounts() {
+    const rows = $('accountRows'); rows.replaceChildren();
+    const groupMap = groups(); renderGroups(groupMap);
+    const filter = $('accountFilter').value.trim().toLocaleLowerCase();
+    const filtered = accounts.filter(a => [a.name, a.group_id, a.id, a.auth_id].some(v => String(v || '').toLocaleLowerCase().includes(filter)));
+    for (const account of filtered) {
+      const q = account.quota || {};
+      const stale = quotaStale(q);
+      const row = el('tr');
+      const name = el('td'); name.append(el('div', account.name, 'name wrap'), el('div', 'Key 指纹 ' + text(account.key_fingerprint), 'sub mono'), el('div', 'ID ' + text(account.id), 'sub mono'), el('div', 'auth_id ' + text(account.auth_id), 'sub mono'));
+      const group = el('td', account.group_id, 'mono wrap');
+      const credits = el('td'); credits.append(el('div', number(q.remaining_credits), 'name'), el('div', stale ? '缓存过期 / 未获取' : '真实快照', 'sub' + (stale ? ' warning' : '')));
+      const quota = el('td'); quota.append(el('div', 'headroom ' + number(q.headroom), 'mono'));
+      const details = el('details', undefined, 'quota-details'); details.append(el('summary', '查看窗口与身份'));
+      if (q.email) details.append(el('div', '邮箱：' + text(q.email), 'sub'));
+      if (q.plan) details.append(el('div', '套餐：' + text(q.plan), 'sub'));
+      if (q.identity) details.append(el('div', '身份：' + text(q.identity), 'sub'));
+      if (!Array.isArray(q.windows) || !q.windows.length) details.append(el('div', '暂无窗口明细', 'sub'));
+      for (const window of Array.isArray(q.windows) ? q.windows : []) {
+        const item = el('div', undefined, 'window'); item.append(el('div', window.name, 'wrap'), el('div', '已用 ' + number(window.used) + ' / cap ' + number(window.cap)), el('div', '剩余 ' + number(window.remaining)), el('div', '重置：' + timestamp(window.reset_at), 'muted')); details.append(item);
+      }
+      quota.append(details);
+      const occupancy = el('td'); const g = groupMap.get(account.group_id); occupancy.append(el('div', '组共享在途 ' + number(g.inflight) + ' / ' + (g.limits.size === 1 ? number(account.max_concurrency) : 'cap 不一致')), el('div', '同组只计一次；API 未提供单 Key 在途', 'sub'));
+      if (g.inflightValues.size !== 1 || g.inflightValues.has(null)) occupancy.append(el('div', '组内快照不一致或缺失，显示已知最大值', 'sub warning'));
+      const state = el('td'); state.append(el('span', account.enabled ? '启用' : '已禁用', 'badge ' + (account.enabled ? 'good' : '')), el('div', account.status || '状态未知', 'sub'), el('div', timestamp(q.updated_at), 'sub'));
+      if (q.error) state.append(el('div', '额度异常：' + text(q.error), 'sub error'));
+      if (stale) state.append(el('div', '额度已过期，不能据此判断当前可用量', 'sub warning'));
+      const actions = el('td'); const buttons = el('div', undefined, 'row'); buttons.append(actionButton('编辑', () => openAccount(account)), actionButton('刷新', () => refreshQuota(account.id)), actionButton('删除', () => deleteAccount(account), true)); actions.append(buttons);
+      row.append(name, group, credits, quota, occupancy, state, actions); rows.append(row);
+    }
+    $('accountEmpty').hidden = filtered.length > 0;
+    $('accountEmpty').textContent = !connected ? '尚未连接。输入管理 Key 后开始。' : accounts.length ? '没有匹配的账号。试试其他名称或分组。' : '账号池为空。新增一个账号或批量导入真实账号 Key。';
+    $('accountSummary').textContent = connected ? accounts.length + ' 个 Key，' + groupMap.size + ' 个真实账号分组；当前显示 ' + filtered.length + ' 个 Key。' : '连接后查看账号。编辑时 Key 留空会保留原值，API 不返回明文。';
+    const staleCount = accounts.filter(a => quotaStale(a.quota || {})).length;
+    const errorCount = accounts.filter(a => a.quota && a.quota.error).length;
+    show('quotaWarning', connected && (staleCount || errorCount) ? '额度提醒：' + staleCount + ' 个 Key 的快照过期或尚未获取，' + errorCount + ' 个 Key 有额度获取错误。可点击“刷新真实额度”；显示的是缓存快照，不是客户端估算。' : '', 'warning');
+  }
+  function requestGroups() {
+    const groups = new Map();
+    for (const event of events) {
+      if (!event.request_id || !event.model || !REQUEST_ACTIONS.has(event.action)) continue;
+      if (!groups.has(event.request_id)) groups.set(event.request_id, []);
+      groups.get(event.request_id).push(event);
+    }
+    return [...groups.values()].sort((a, b) => BigInt(a.at(-1).sequence) < BigInt(b.at(-1).sequence) ? -1 : 1);
+  }
+  function retainRequests() {
+    events = requestGroups().slice(-EVENT_LIMIT).flatMap(group => {
+      const clipped = group.length > DETAIL_LIMIT || group.some(e => e.history_clipped);
+      const retained = group.slice(-DETAIL_LIMIT);
+      if (clipped) retained[0].history_clipped = true;
+      return retained;
+    }).sort((a, b) => BigInt(a.sequence) < BigInt(b.sequence) ? -1 : 1);
+  }
+  function reasonText(reason) {
+    const reasons = {eligible: '可用', closed: '账号池已关闭', storage_unconfirmed: '账号存储状态未确认', cleanup_unconfirmed: '上游清理未确认，占位未释放', deleted: '账号已删除', identity_conflict: '真实账号归组冲突', unknown_auth: '不属于本账号池的凭据', missing_request_id: '缺少请求编号', request_finished: '请求已结束，拒绝晚到执行', selected: '按窗口余量、剩余 credits 和组占用排序选出候选', no_eligible_account: '没有可用账号', concurrency_limit: '账号共享并发已满', quota_stale: '额度快照已过期', quota_unavailable: '未取得有效额度', quota_exhausted: '额度已耗尽', disabled: '账号未启用', acquired: '已取得并发名额', upstream_complete: '上游正常完成', upstream_canceled: '请求已取消', upstream_network_failure: '上游连接失败', upstream_status_failure: '上游返回错误', upstream_read_failure: '上游读取失败', upstream_stream_failure: '上游流失败', upstream_translation_failure: '响应转换失败', upstream_response_limit: '响应超过大小限制', upstream_producer_panicked: '上游处理异常', upstream_cleanup_unconfirmed: '上游清理未确认，占位未释放', done: '上游正常完成', complete: '上游正常完成', completed: '上游正常完成', canceled: '请求已取消', cancelled: '请求已取消'};
+    return reasons[reason] || '其他原因（见技术详情）';
+  }
+  function requestState(group) {
+    const attempts = new Map();
+    let incomplete = group.some(e => e.history_clipped) || group[0].action !== 'pick';
+    for (const event of group) {
+      if (event.action === 'acquire') attempts.set(event.attempt_id, event);
+      if (event.action === 'settle') {
+        if (!attempts.has(event.attempt_id)) incomplete = true;
+        attempts.delete(event.attempt_id);
+      }
+    }
+    const last = group.at(-1);
+    const latestAcquire = [...group].reverse().find(e => e.action === 'acquire');
+    const unsettledQuarantine = group.some(e => e.action === 'quarantined' && !group.some(s => s.action === 'settle' && s.attempt_id === e.attempt_id && BigInt(s.sequence) > BigInt(e.sequence)));
+    let label = '等待执行', kind = 'warning';
+    if (unsettledQuarantine) label = '清理未确认 · 占位未释放';
+    else if (attempts.size) label = '执行中';
+    else if (last.action === 'settle') {
+      if (COMPLETE_REASONS.has(last.reason)) { label = '成功'; kind = 'good'; }
+      else if (CANCELED_REASONS.has(last.reason)) label = '已取消';
+      else { label = '失败'; kind = 'error'; }
+    } else if (last.action === 'acquire_rejected' || (last.action === 'pick' && !last.account_id)) {
+      label = latestAcquire ? '失败 · 后续尝试未执行' : '未执行'; kind = latestAcquire ? 'error' : 'warning';
+    }
+    if (incomplete || (last.action === 'settle' && !group.some(e => e.action === 'pick'))) label = '历史信息不完整 · ' + label;
+    return {label, kind, latestAcquire};
+  }
+  function renderEvents() {
+    const expanded = new Set(Array.from($('eventRows').querySelectorAll('details[open]')).map(d => d.dataset.request));
+    $('eventRows').replaceChildren();
+    const names = new Map(accounts.map(a => [a.id, a.name]));
+    const groups = requestGroups();
+    for (const group of [...groups].reverse()) {
+      const first = group[0], last = group.at(-1), state = requestState(group);
+      const article = el('article', undefined, 'event'); article.dataset.request = text(first.request_id);
+      const head = el('div', undefined, 'event-head'); head.append(el('span', state.label, 'badge ' + state.kind), el('span', timestamp(first.at), 'muted tiny'));
+      const meta = el('div', undefined, 'event-meta');
+      const executed = state.latestAcquire || (last.action === 'settle' ? last : null);
+      meta.append(el('span', '模型：' + text(last.model)), el('span', executed ? '实际账号：' + text(names.get(executed.account_id) || '账号已移除（见详情）') : '实际账号：未执行'));
+      const pick = [...group].reverse().find(e => e.action === 'pick');
+      let explanation = pick ? reasonText(pick.reason) : '未保留选号记录，不能还原完整调度过程';
+      if (pick && !pick.account_id && Array.isArray(pick.candidates)) {
+        const counts = new Map();
+        for (const c of pick.candidates) { const reason = reasonText(c.reason); counts.set(reason, (counts.get(reason) || 0) + 1); }
+        if (counts.size) explanation += '：' + [...counts].map(([reason, count]) => reason + '（' + count + ' 个 Key）').join('；');
+      }
+      if (last.action === 'acquire_rejected') explanation += '；准入拒绝：' + reasonText(last.reason);
+      if (last.action === 'settle' && !COMPLETE_REASONS.has(last.reason)) explanation += '；' + reasonText(last.reason);
+      const attemptCount = new Set(group.filter(e => e.action === 'acquire').map(e => e.attempt_id)).size;
+      if (attemptCount > 1) explanation += '；记录到 ' + attemptCount + ' 次实际尝试';
+      article.append(head, meta, el('p', explanation, 'event-reason'));
+      const details = el('details'); details.dataset.request = text(first.request_id); details.open = expanded.has(text(first.request_id)); details.append(el('summary', '技术详情 · 候选评分与 ' + group.length + ' 条过程记录'));
+      details.append(el('p', 'request_id ' + text(first.request_id), 'mono tiny wrap'));
+      for (const event of group) {
+        details.append(el('p', '#' + text(event.sequence) + ' ' + timestamp(event.at) + ' · ' + text(event.action) + ' · ' + text(event.reason) + ' · account_id ' + text(event.account_id) + ' · group_id ' + text(event.group_id) + ' · attempt_id ' + text(event.attempt_id), 'mono tiny wrap'));
+        const candidates = Array.isArray(event.candidates) ? event.candidates : [];
+        if (!candidates.length) continue;
+        const scroll = el('div', undefined, 'table-scroll'); scroll.tabIndex = 0; scroll.setAttribute('aria-label', '候选评分表，可横向滚动');
+        const table = el('table', undefined, 'candidate-table'); const header = el('tr');
+        for (const title of ['候选账号 / auth_id', 'group_id', 'headroom', '剩余 credits', '组在途 / cap', '可选', '实际原因']) { const th = el('th', title); th.scope = 'col'; header.append(th); }
+        const thead = el('thead'); thead.append(header); const body = el('tbody');
+        for (const candidate of candidates) {
+          const row = el('tr'); const identity = el('td'); identity.append(el('div', names.get(candidate.account_id) || candidate.account_id, 'wrap'), el('div', 'account_id ' + text(candidate.account_id), 'sub mono'), el('div', 'auth_id ' + text(candidate.auth_id), 'sub mono'));
+          row.append(identity, el('td', candidate.group_id, 'mono wrap'), el('td', number(candidate.headroom)), el('td', number(candidate.remaining_credits)), el('td', number(candidate.inflight) + ' / ' + number(candidate.limit)), el('td', candidate.eligible ? '是' : '否', candidate.eligible ? 'good' : 'warning'), el('td', reasonText(candidate.reason) + ' · ' + text(candidate.reason), 'wrap')); body.append(row);
+        }
+        table.append(thead, body); scroll.append(table); details.append(scroll);
+      }
+      article.append(details); $('eventRows').append(article);
+    }
+    $('eventEmpty').hidden = groups.length > 0;
+    $('eventSummary').textContent = '本页 ' + groups.length + ' / ' + EVENT_LIMIT + ' 个真实请求；游标 ' + cursor + '。候选评分来自后端，不在本页重算。';
+  }
+  function schedule(version) {
+    clearTimeout(timer); timer = null;
+    if (alive(version) && !paused) timer = setTimeout(() => sync(version), POLL_INTERVAL);
+  }
+  async function sync(version = generation) {
+    if (!alive(version) || syncing || mutating) return;
+    syncing = true; setControls();
+    try {
+      const [accountData, eventData, statusData] = await Promise.all([api('accounts'), api('events', 'GET', undefined, cursor), api('status')]);
+      if (!alive(version)) return;
+      if (!Array.isArray(accountData.accounts) || !Array.isArray(eventData.events) || !statusData.status || !/^\d+$/.test(String(eventData.next_cursor))) throw new Error('管理 API 返回结构不符合页面合同，请核对插件版本。');
+      accounts = accountData.accounts;
+      status = statusData.status;
+      if (BigInt(eventData.next_cursor) < BigInt(cursor)) throw new Error('事件游标回退，可能已切换进程。请断开后重新连接以建立新的事件会话。');
+      const seen = new Set(events.map(e => String(e.sequence)));
+      for (const event of eventData.events) {
+        const sequence = String(event.sequence);
+        if (!/^\d+$/.test(sequence)) throw new Error('事件序号无效，请核对插件版本。');
+        if (BigInt(sequence) > BigInt(cursor) && !seen.has(sequence)) { events.push(event); seen.add(sequence); }
+      }
+      events.sort((a, b) => BigInt(a.sequence) < BigInt(b.sequence) ? -1 : BigInt(a.sequence) > BigInt(b.sequence) ? 1 : 0);
+      retainRequests();
+      cursor = String(eventData.next_cursor);
+      renderStatus(); renderAccounts(); renderEvents(); show('syncError', '');
+      $('lastSync').textContent = '最近同步 ' + timestamp(new Date().toISOString());
+    } catch (error) {
+      if (alive(version) && error.authenticationFailed) { disconnect(); show('syncError', error.message + ' 已停止轮询并清空本页凭据与数据。', 'error'); }
+      else if (alive(version) && error.name !== 'AbortError') show('syncError', '同步失败：' + error.message + ' 保留上次快照，5 秒轮询可暂停。', 'error');
+    } finally {
+      if (alive(version)) { syncing = false; setControls(); schedule(version); }
+    }
+  }
+  function closeDialog(id) {
+    const dialog = $(id); if (dialog.open) dialog.close();
+    if (id === 'accountDialog') { $('accountKey').value = ''; editingID = ''; }
+    else $('importJSON').value = '';
+    document.body.classList.remove('dialog-open');
+  }
+  function disconnect() {
+    connected = false; managementKey = ''; generation++; clearTimeout(timer); timer = null;
+    for (const controller of controllers) controller.abort(); controllers.clear();
+    accounts = []; events = []; status = null; cursor = '0'; paused = false; syncing = false; mutating = false;
+    $('connectionForm').reset(); $('accountForm').reset(); $('importForm').reset(); $('accountFilter').value = '';
+    closeDialog('accountDialog'); closeDialog('importDialog');
+    $('accountDialogTitle').textContent = '新增账号';
+    $('groupCapHint').textContent = 'cap 设置作用于整个真实账号分组。同组配置必须一致。';
+    $('groupCapHint').className = 'help field full';
+    for (const id of ['message', 'syncError', 'scopeWarning', 'quotaWarning', 'importResult', 'accountFormError', 'importFormError']) { $(id).replaceChildren(); $(id).hidden = true; }
+    renderStatus(); renderAccounts(); renderEvents(); $('lastSync').textContent = '已断开；本页数据与凭据已清空'; setControls();
+  }
+  function openAccount(account) {
+    if (!connected || mutating || syncing) return;
+    $('accountForm').reset(); editingID = account ? account.id : '';
+    $('accountDialogTitle').textContent = account ? '编辑账号（Key 不回显）' : '新增账号';
+    $('accountName').value = account ? account.name : '';
+    $('accountGroup').value = account ? account.group_id : '';
+    $('accountLimit').value = account ? account.max_concurrency : (status && status.default_limit) || 1;
+    $('accountEnabled').checked = account ? account.enabled : true;
+    $('accountKey').value = ''; $('accountKey').required = !account;
+    show('accountFormError', ''); updateGroupHint(); $('accountDialog').showModal(); document.body.classList.add('dialog-open');
+  }
+  function updateGroupHint() {
+    const id = $('accountGroup').value.trim(); const existing = groups().get(id); const cap = Number($('accountLimit').value);
+    const current = accounts.find(a => a.id === editingID);
+    const editsGroup = current && current.group_id === id;
+    $('groupCapHint').textContent = existing ? '此组已有 ' + existing.accounts.length + ' 个 Key，当前共享 cap：' + Array.from(existing.limits).join(' / ') + '。' + (existing.limits.has(cap) && existing.limits.size === 1 ? '所有 Key 共享同一 cap。' : editsGroup ? '警告：保存将原子更新整组 cap，影响同组所有 Key；不能低于当前组在途数。' : '新增或移入此组必须使用现有共享 cap，不会隐式更改整组 cap。') : 'cap 设置作用于整个真实账号分组。同组配置必须一致。';
+    $('groupCapHint').className = 'help field full' + (existing && (!existing.limits.has(cap) || existing.limits.size !== 1) ? ' warning' : '');
+  }
+  async function mutation(task, success, errorTarget = 'message') {
+    if (!connected || mutating || syncing) return;
+    const version = generation; mutating = true; clearTimeout(timer); timer = null; setControls();
+    try {
+      const result = await task();
+      if (!alive(version)) return;
+      await success(result);
+    } catch (error) {
+      if (alive(version) && error.authenticationFailed) { disconnect(); show('syncError', error.message + ' 已停止轮询并清空本页凭据与数据。', 'error'); }
+      else if (alive(version) && error.name !== 'AbortError') show(errorTarget, error.message, errorTarget === 'message' ? 'error' : undefined);
+    }
+    finally { if (alive(version)) { mutating = false; setControls(); if (!syncing) await sync(version); } }
+  }
+  function refreshQuota(id) {
+    return mutation(() => api('quota/refresh', 'POST', id ? {id} : {}), () => { show('message', '真实额度刷新已完成。账号表将重新读取后端快照。'); });
+  }
+  function deleteAccount(account) {
+    if (!connected || mutating || syncing || !window.confirm('删除账号“' + text(account.name) + '”？此操作移除该 Key 的配置，不能在页面中撤销。')) return;
+    return mutation(() => api('accounts/delete', 'POST', {id: account.id}), () => { show('message', '已删除账号“' + text(account.name) + '”。'); });
+  }
+  $('connectionForm').addEventListener('submit', (event) => {
+    event.preventDefault(); if (connected) return;
+    managementKey = $('managementKey').value.trim(); $('managementKey').value = '';
+    if (!managementKey) { show('message', '请输入 CPAMP 管理 Key。', 'error'); return; }
+    connected = true; paused = false; generation++; show('message', '已连接管理会话，正在读取真实账号与状态。'); setControls(); sync(generation);
+  });
+  $('disconnectButton').addEventListener('click', disconnect);
+  window.addEventListener('pagehide', disconnect);
+  $('pollButton').addEventListener('click', () => { paused = !paused; clearTimeout(timer); timer = null; setControls(); if (!paused) sync(); });
+  $('reloadButton').addEventListener('click', () => sync());
+  $('accountFilter').addEventListener('input', renderAccounts);
+  $('refreshAllButton').addEventListener('click', () => refreshQuota());
+  $('addButton').addEventListener('click', () => openAccount());
+  $('clearEventsButton').addEventListener('click', () => { events = []; renderEvents(); });
+  for (const id of ['closeAccountButton', 'cancelAccountButton']) $(id).addEventListener('click', () => closeDialog('accountDialog'));
+  for (const id of ['closeImportButton', 'cancelImportButton']) $(id).addEventListener('click', () => closeDialog('importDialog'));
+  for (const id of ['accountDialog', 'importDialog']) {
+    $(id).addEventListener('cancel', () => closeDialog(id));
+    $(id).addEventListener('close', () => { if (id === 'accountDialog') { $('accountKey').value = ''; editingID = ''; } else $('importJSON').value = ''; document.body.classList.remove('dialog-open'); });
+  }
+  $('accountGroup').addEventListener('input', () => {
+    const existing = groups().get($('accountGroup').value.trim());
+    if (existing && existing.limits.size === 1) $('accountLimit').value = existing.accounts[0].max_concurrency;
+    updateGroupHint();
+  });
+  $('accountLimit').addEventListener('input', updateGroupHint);
+  $('accountForm').addEventListener('submit', async (event) => {
+    event.preventDefault(); if (!connected || mutating || syncing) return;
+    const input = {name: $('accountName').value.trim(), group_id: $('accountGroup').value.trim(), max_concurrency: Number($('accountLimit').value), enabled: $('accountEnabled').checked};
+    if (editingID) input.id = editingID;
+    input.api_key = $('accountKey').value.trim(); $('accountKey').value = '';
+    if (!input.name || !input.group_id || !Number.isSafeInteger(input.max_concurrency) || input.max_concurrency < 1 || (!input.id && !input.api_key)) { input.api_key = ''; show('accountFormError', '填写名称、真实分组、正整数 cap；新增账号需要 API Key（请重新输入）。'); return; }
+    const existing = groups().get(input.group_id);
+    const current = accounts.find(a => a.id === editingID);
+    if (existing && (!current || current.group_id !== input.group_id) && (existing.limits.size !== 1 || !existing.limits.has(input.max_concurrency))) { input.api_key = ''; show('accountFormError', '新增或移入已有分组必须使用现有共享 cap。更改整组 cap 请编辑该组已有账号；Key 已清空，请重新输入。'); return; }
+    if (existing && input.max_concurrency < existing.inflight) { input.api_key = ''; show('accountFormError', '共享 cap 不能低于当前组在途数 ' + number(existing.inflight) + '。Key 已清空，请重新输入。'); return; }
+    if (!input.api_key) delete input.api_key;
+    show('accountFormError', '');
+    try { await mutation(() => api('accounts', 'POST', input), (data) => { if (!data.account) throw new Error('保存响应缺少 account，请核对账号表后再操作。'); closeDialog('accountDialog'); show('message', '账号已保存。同组 Key 共享并发 cap，请核对分组表。'); }, 'accountFormError'); }
+    finally { input.api_key = ''; }
+  });
+  $('importButton').addEventListener('click', () => { if (!connected || mutating || syncing) return; $('importForm').reset(); show('importFormError', ''); $('importDialog').showModal(); document.body.classList.add('dialog-open'); });
+  $('importForm').addEventListener('submit', async (event) => {
+    event.preventDefault(); if (!connected || mutating || syncing) return;
+    let imported;
+    try {
+      let parsed = JSON.parse($('importJSON').value); $('importJSON').value = '';
+      imported = Array.isArray(parsed) ? parsed : parsed && parsed.accounts; parsed = null;
+      if (!Array.isArray(imported) || !imported.length) throw new Error('请输入非空账号数组。');
+      const caps = new Map();
+      for (const input of imported) {
+        if (!input || typeof input !== 'object' || typeof input.name !== 'string' || !input.name.trim() || typeof input.group_id !== 'string' || !input.group_id.trim() || !Number.isSafeInteger(input.max_concurrency) || input.max_concurrency < 1 || (input.id !== undefined && typeof input.id !== 'string') || (!input.id && (typeof input.api_key !== 'string' || !input.api_key.trim())) || (input.api_key !== undefined && typeof input.api_key !== 'string') || (input.enabled !== undefined && typeof input.enabled !== 'boolean')) throw new Error('每条账号需要 name、group_id、正整数 max_concurrency；新增还需要 api_key。enabled 必须是布尔值。');
+        input.name = input.name.trim(); input.group_id = input.group_id.trim();
+        if (typeof input.api_key === 'string') input.api_key = input.api_key.trim();
+        if (caps.has(input.group_id) && caps.get(input.group_id) !== input.max_concurrency) throw new Error('同批次同 group_id 的 max_concurrency 必须一致。');
+        caps.set(input.group_id, input.max_concurrency);
+      }
+    } catch (error) {
+      $('importJSON').value = '';
+      if (Array.isArray(imported)) for (const input of imported) if (input && typeof input === 'object') input.api_key = '';
+      show('importFormError', error instanceof SyntaxError ? 'JSON 格式错误。输入已清空，请修正后重新粘贴。' : error.message + ' 输入已清空，请修正后重新粘贴。'); return;
+    }
+    const sanitized = imported.map(input => ({id: input.id, name: input.name, group_id: input.group_id, api_key: input.api_key || undefined, max_concurrency: input.max_concurrency, enabled: input.enabled}));
+    for (const input of imported) input.api_key = ''; imported = null;
+    const requested = sanitized.length;
+    show('importFormError', '');
+    try {
+      await mutation(() => api('accounts/import', 'POST', {accounts: sanitized}), (data) => {
+        if (!Array.isArray(data.accounts)) throw new Error('导入响应缺少成功账号列表。请先核对账号表，避免重复导入。');
+        closeDialog('importDialog'); const result = $('importResult'); result.replaceChildren(); result.hidden = false;
+        const count = data.accounts.length; const partial = Boolean(data.error) || count !== requested;
+        result.append(el('p', (partial ? '部分成功' : '导入完成') + '：成功 ' + count + ' / 提交 ' + requested + ' 条。' + (partial ? '未完成 ' + Math.max(0, requested - count) + ' 条；请核对下列已成功账号，修正后仅重新提交未完成项。' : '输入中的 Key 已清空。'), partial ? 'warning' : 'good'));
+        if (data.error) result.append(el('p', '后端报告导入错误。为避免错误正文回显 Key，本页不展示原始错误；请按成功清单核对名称、分组与 cap。', 'help'));
+        const list = el('ul'); for (const account of data.accounts) list.append(el('li', text(account.name) + ' / ' + text(account.group_id) + ' / ID ' + text(account.id))); result.append(list);
+      }, 'importFormError');
+    } finally { for (const input of sanitized) input.api_key = ''; }
+  });
+  renderAccounts(); renderEvents(); setControls();
+})();
+</script>
+</body>
+</html>

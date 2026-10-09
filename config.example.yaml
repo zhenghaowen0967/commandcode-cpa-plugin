@@ -1,0 +1,64 @@
+# Local mock-only CPA v8 example. Replace path/key placeholders before use.
+# This file does not authorize starting CPA, CPAMP, or contacting real providers.
+config-version: 8
+server:
+  host: "127.0.0.1"
+  port: 18633
+  discovery:
+    enabled: false
+management:
+  allow-remote: false
+  secret-key: "REPLACE_WITH_LOCAL_TEST_MANAGEMENT_KEY"
+  disable-control-panel: true
+  disable-auto-update-panel: true
+access:
+  api-keys:
+    - "REPLACE_WITH_LOCAL_TEST_CLIENT_KEY"
+oauth:
+  # Must resolve to exactly the same directory as pool.auth-dir below.
+  auth-dir: "/absolute/path/to/isolated-test/auths"
+plugins:
+  enabled: true
+  dir: "/absolute/path/to/isolated-test/plugins"
+  configs:
+    commandcode-pool:
+      enabled: true
+      priority: 0
+      # Keep false by default. Do not enable in production without an authorized,
+      # controlled Scheduler takeover plan; see UNIFIED_SCHEDULER.md.
+      guard-only: false
+      # Optional plugin upstream proxy: omitted inherits process proxy environment.
+      # Set "direct" or "none" to explicitly bypass environment proxy settings.
+      # CPA's own requests.proxy-url is separate and is not changed by this field.
+      # proxy-url: direct
+      # HTTP is for a separately authorized loopback mock provider only.
+      base-url: "http://127.0.0.1:18635/provider/v1"
+      catalog-url: "http://127.0.0.1:18635/provider/v1/models"
+      allow-http: true
+      model-prefix:
+        enabled: true
+        value: "commandcode"
+      pool:
+        auth-dir: "/absolute/path/to/isolated-test/auths"
+        # Omit state-path to use <auth-dir>/.commandcode-pool/state.json.
+        # auth-dir, state-path, max-concurrency and quota-max-age changes
+        # require a CPA restart; account-specific caps can change live.
+        max-concurrency: 2
+        quota-max-age: "5m"
+        quota-refresh-interval: "1m"
+      # Prefer adding credentials through the pool page with an explicit
+      # real-account group_id. Legacy api-keys all share configured-accounts.
+      api-keys: []
+      # Legacy form, if deliberately required:
+      # api-keys:
+      #   - value: "${COMMANDCODE_TEST_KEY}"
+      catalog:
+        refresh-interval: "15m"
+        stale-while-unavailable: true
+      protocols:
+        chat-completions: true
+        messages: true
+        responses: true
+      route-overrides: {}
+      request-timeout: "5m"
+      max-response-bytes: 67108864

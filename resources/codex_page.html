@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Codex 429 临时禁用</title>
+<style>
+:root{--bg:var(--app-bg,#101722);--surface:var(--app-surface,#162131);--raised:var(--app-surface-muted,#1c2b40);--line:var(--border-color,#30435b);--text:var(--text-primary,#edf3fc);--muted:var(--text-secondary,#afbed1);--blue:var(--primary-color,#83b8ff);--action:var(--primary-solid,var(--primary-color,#2563ce));--good:var(--data-badge-success-text,#a2debd);--warn:var(--data-badge-warning-text,#ffd18d);--bad:var(--data-badge-danger-text,#ffacb5);font-family:"Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.6}
+:root:not([data-cpamp-plugin-host='true']){color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}button{font:inherit;cursor:pointer;border:1px solid var(--line);border-radius:7px;padding:8px 13px;background:var(--raised);color:var(--text);font-weight:600;white-space:nowrap}button:hover:not(:disabled){border-color:var(--blue)}button:disabled{cursor:not-allowed;opacity:.48}button.primary{background:var(--action);border-color:var(--action);color:var(--primary-contrast,#fff)}button.danger{color:var(--bad)}button.small{padding:5px 10px;font-size:12px}:focus-visible{outline:2px solid var(--blue);outline-offset:3px}[hidden]{display:none!important}h1,h2,p{margin:0}h1{font-size:26px;line-height:1.25;letter-spacing:-.025em}h2{font-size:16px}.shell{max-width:1320px;margin:auto;padding:32px;min-width:0}.masthead{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:22px}.title-line{display:flex;align-items:center;gap:12px}.signal-mark{width:10px;height:30px;border-radius:2px;background:var(--bad)}.intro{margin-top:8px;max-width:78ch;color:var(--muted)}.connection-state{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;white-space:nowrap}.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}.connected .dot{background:var(--good)}.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;margin-bottom:16px;min-width:0}.connect-panel{padding:18px 20px}.connect-grid{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:12px;align-items:end}.connect-grid label{display:grid;gap:6px}.connect-grid input{width:100%;min-width:0;padding:9px 11px;border:1px solid var(--line);border-radius:7px;background:var(--raised);color:var(--text);font:inherit}.actions{display:flex;gap:8px;flex-wrap:wrap}.notice{margin-top:13px;padding:10px 12px;border-left:3px solid var(--warn);background:var(--raised);color:var(--muted);font-size:13px}.scope{display:flex;gap:8px 22px;flex-wrap:wrap;margin-top:12px;color:var(--muted);font-size:12px}.banner{padding:12px 16px;margin-bottom:14px;border:1px solid var(--line);border-left:3px solid var(--blue);background:var(--surface);border-radius:6px;overflow-wrap:anywhere}.banner.error{border-left-color:var(--bad)}.banner.success{border-left-color:var(--good)}.panel-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;padding:17px 20px}.summary{color:var(--muted);font-size:12px;margin-top:3px}.table-scroll{max-width:100%;overflow-x:auto;border-top:1px solid var(--line);overscroll-behavior-x:contain}table{width:100%;min-width:790px;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums}th{padding:10px 16px;background:var(--raised);color:var(--muted);font-size:12px;font-weight:550;white-space:nowrap}td{padding:13px 16px;border-top:1px solid var(--line);vertical-align:middle;font-size:13px}tbody tr:hover{background:var(--raised)}.mono{font-family:"SFMono-Regular",Consolas,monospace;font-variant-numeric:tabular-nums}.auth-id{max-width:420px;overflow-wrap:anywhere}.window-name{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:1px 7px;color:var(--muted);font-size:12px}.countdown{font-weight:650;color:var(--warn);white-space:nowrap}.empty{padding:36px 20px;text-align:center;color:var(--muted)}.footer{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:12px 20px;border-top:1px solid var(--line);color:var(--muted);font-size:12px}.page-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:18px}@media(max-width:760px){.shell{padding:22px 15px 30px}.masthead{gap:12px}.signal-mark{height:26px}h1{font-size:22px}.connect-grid{grid-template-columns:1fr}.actions{width:100%}.actions button{flex:1}.connect-panel,.panel-head{padding:15px}.intro{font-size:13px}.connection-state{font-size:12px}.scope{display:grid;gap:5px}.footer{padding:11px 15px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="masthead">
+    <div><div class="title-line"><span class="signal-mark" aria-hidden="true"></span><h1>Codex 429 临时禁用</h1></div><p class="intro">查看因 429 响应暂时禁用的账号，并按需清除插件内的禁用记录。</p></div>
+    <span id="connectionState" class="connection-state"><span class="dot" aria-hidden="true"></span><span id="connectionLabel">未连接</span></span>
+  </header>
+  <section class="panel connect-panel" aria-label="管理连接">
+    <form id="connectionForm" autocomplete="off">
+      <div class="connect-grid"><label for="managementKey">CPAMP 管理 Key<input id="managementKey" type="password" autocomplete="off" spellcheck="false" placeholder="输入当前 CPAMP 的管理 Key" required></label><div class="actions"><button id="connectButton" class="primary" type="submit">连接管理 API</button><button id="disconnectButton" type="button" disabled>断开并清空</button><button id="pollButton" type="button" disabled>暂停轮询</button><button id="reloadButton" type="button" disabled>立即同步</button></div></div>
+    </form>
+    <p class="notice">禁用记录仅保存在插件内存中，到期恢复，重启丢失。手动解禁只清本插件，不会清 CPA 内建冷却或 CPAMP 禁用文件；无法据此强制恢复流量。</p>
+    <div class="scope" id="scopeInfo"><span>作用范围：连接后读取</span><span>每 5 秒读取一次；本页不保存管理 Key</span></div>
+  </section>
+  <div id="message" class="banner" role="status" aria-live="polite" hidden></div>
+  <div id="syncError" class="banner error" role="alert" hidden></div>
+  <section class="panel" aria-labelledby="bansTitle">
+    <div class="panel-head"><div><h2 id="bansTitle">临时禁用记录</h2><p id="banSummary" class="summary">连接后读取当前插件进程内的 Codex 429 记录。</p></div><button id="unbanAllButton" type="button" class="danger" disabled>全部解禁</button></div>
+    <div class="table-scroll" tabindex="0" aria-label="临时禁用记录表格，可横向滚动"><table><thead><tr><th scope="col">auth_id</th><th scope="col">window</th><th scope="col">banned_at</th><th scope="col">reset_at</th><th scope="col">剩余时间</th><th scope="col">操作</th></tr></thead><tbody id="banRows"></tbody></table></div>
+    <p id="banEmpty" class="empty">尚未连接。输入管理 Key 后开始。</p>
+    <div class="footer"><span id="scopeState">作用范围：single_process</span><span id="lastSync">尚未同步</span></div>
+  </section>
+  <footer class="page-foot"><span>CommandCode / CPAMP 同源管理页</span><span>状态仅代表当前 CPA 进程的插件内存</span></footer>
+</main>
+<script>
+(() => {
+  'use strict';
+  const API_BASE = '/v0/management/plugins/commandcode-pool';
+  const ENDPOINTS = new Set(['codex/bans', 'codex/unban', 'codex/unban-all']);
+  const POLL_INTERVAL = 5000;
+  const REQUEST_TIMEOUT = 20000;
+  const $ = (id) => document.getElementById(id);
+  let managementKey = '';
+  let connected = false;
+  let generation = 0;
+  let pollTimer = null;
+  let countdownTimer = null;
+  let paused = false;
+  let syncing = false;
+  let mutating = false;
+  let bans = [];
+  const controllers = new Set();
+
+  function alive(version) { return connected && generation === version; }
+  function setMessage(id, value, kind) {
+    const node = $(id);
+    node.textContent = value || '';
+    node.hidden = !value;
+    if (kind) node.className = 'banner ' + kind;
+  }
+  function timestamp(value) {
+    const date = new Date(value);
+    return value && Number.isFinite(date.getTime()) ? date.toLocaleString('zh-CN', {hour12: false}) : '—';
+  }
+  function remaining(value) {
+    const at = new Date(value).getTime();
+    if (!Number.isFinite(at)) return '未知';
+    const seconds = Math.max(0, Math.ceil((at - Date.now()) / 1000));
+    if (seconds <= 0) return '已到期，等待同步';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return hours ? hours + ' 小时 ' + minutes + ' 分' : minutes ? minutes + ' 分 ' + secs + ' 秒' : secs + ' 秒';
+  }
+  function setControls() {
+    $('managementKey').disabled = connected;
+    $('connectButton').disabled = connected;
+    $('disconnectButton').disabled = !connected;
+    $('pollButton').disabled = !connected || syncing || mutating;
+    $('pollButton').textContent = paused ? '恢复轮询' : '暂停轮询';
+    $('reloadButton').disabled = !connected || syncing || mutating;
+    $('unbanAllButton').disabled = !connected || syncing || mutating || bans.length === 0;
+    $('connectionState').className = 'connection-state' + (connected ? ' connected' : '');
+    $('connectionLabel').textContent = connected ? (paused ? '已连接 · 轮询暂停' : '已连接 · 5 秒同步') : '未连接';
+    for (const button of $('banRows').querySelectorAll('[data-action]')) button.disabled = !connected || syncing || mutating;
+  }
+  function clearTimers() {
+    clearTimeout(pollTimer); pollTimer = null;
+    clearInterval(countdownTimer); countdownTimer = null;
+  }
+  function validBans(value) {
+    return Array.isArray(value) && value.every((ban) => ban && typeof ban.auth_id === 'string' && ban.auth_id.length > 0 && typeof ban.window === 'string' && typeof ban.banned_at === 'string' && typeof ban.reset_at === 'string');
+  }
+  async function api(endpoint, method = 'GET', body) {
+    if (!connected || !managementKey) throw new Error('连接已断开。');
+    if (!ENDPOINTS.has(endpoint) || (endpoint === 'codex/bans' ? method !== 'GET' : method !== 'POST')) throw new Error('管理接口不在允许列表中。');
+    const controller = new AbortController();
+    controllers.add(controller);
+    let timedOut = false;
+    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, REQUEST_TIMEOUT);
+    try {
+      const response = await fetch(API_BASE + '/' + endpoint, {
+        method, headers: {'Authorization': 'Bearer ' + managementKey, 'Content-Type': 'application/json'},
+        body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal,
+        credentials: 'same-origin', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer'
+      });
+      if (response.status === 401 || response.status === 403) {
+        const error = new Error('管理 Key 无效或没有权限（HTTP ' + response.status + '）。请重新连接。');
+        error.authenticationFailed = true;
+        throw error;
+      }
+      if (!response.ok) throw new Error('管理 API 返回 HTTP ' + response.status + '。请检查 CPAMP 与插件状态。');
+      return await response.json();
+    } catch (error) {
+      if (timedOut) throw new Error('管理 API 超过 20 秒未响应。');
+      if (error.name === 'AbortError') throw error;
+      if (error instanceof TypeError || error instanceof SyntaxError) throw new Error('管理 API 连接失败或响应不是有效 JSON。请检查同源页面与插件状态。');
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+      controllers.delete(controller);
+    }
+  }
+  function render() {
+    const rows = $('banRows');
+    rows.replaceChildren();
+    for (const ban of bans) {
+      const row = document.createElement('tr');
+      const auth = document.createElement('td'); auth.className = 'mono auth-id'; auth.textContent = ban.auth_id;
+      const windowCell = document.createElement('td');
+      const windowName = document.createElement('span'); windowName.className = 'window-name'; windowName.textContent = ban.window; windowCell.appendChild(windowName);
+      const bannedAt = document.createElement('td'); bannedAt.className = 'mono'; bannedAt.textContent = timestamp(ban.banned_at);
+      const resetAt = document.createElement('td'); resetAt.className = 'mono'; resetAt.textContent = timestamp(ban.reset_at);
+      const countdown = document.createElement('td'); countdown.className = 'countdown'; countdown.textContent = remaining(ban.reset_at);
+      const actionCell = document.createElement('td');
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'small danger'; button.textContent = '解禁'; button.dataset.action = 'unban'; button.dataset.authId = ban.auth_id;
+      actionCell.appendChild(button);
+      row.append(auth, windowCell, bannedAt, resetAt, countdown, actionCell);
+      rows.appendChild(row);
+    }
+    $('banEmpty').hidden = bans.length > 0;
+    $('banEmpty').textContent = connected ? '当前没有临时禁用记录。到期后页面会自动更新。' : '尚未连接。输入管理 Key 后开始。';
+    $('banSummary').textContent = connected ? '当前进程内 ' + bans.length + ' 条临时禁用记录' : '连接后读取当前插件进程内的 Codex 429 记录。';
+    $('scopeState').textContent = '作用范围：single_process · memory_only · 主机冷却独立';
+    setControls();
+  }
+  function schedule(version) {
+    clearTimeout(pollTimer); pollTimer = null;
+    if (alive(version) && !paused) pollTimer = setTimeout(() => sync(version), POLL_INTERVAL);
+  }
+  async function sync(version = generation) {
+    if (!alive(version) || syncing || mutating) return;
+    syncing = true; setControls();
+    try {
+      const data = await api('codex/bans');
+      if (!alive(version)) return;
+      if (!validBans(data.bans) || data.scope !== 'single_process' || data.state !== 'memory_only' || data.host_cooldown_independent !== true) throw new Error('管理 API 返回结构不符合 Codex 禁用记录合同，请核对插件版本。');
+      bans = data.bans;
+      render();
+      setMessage('syncError', '');
+      $('lastSync').textContent = '最近同步 ' + timestamp(new Date().toISOString());
+    } catch (error) {
+      if (alive(version) && error.authenticationFailed) {
+        disconnect();
+        setMessage('syncError', error.message + ' 已停止轮询并清空本页凭据与记录。', 'error');
+      } else if (alive(version) && error.name !== 'AbortError') setMessage('syncError', '同步失败：' + error.message + ' 保留上次快照。', 'error');
+    } finally {
+      if (alive(version)) { syncing = false; setControls(); schedule(version); }
+    }
+  }
+  function disconnect() {
+    connected = false; managementKey = ''; generation++;
+    clearTimers();
+    for (const controller of controllers) controller.abort();
+    controllers.clear();
+    paused = false; syncing = false; mutating = false; bans = [];
+    $('connectionForm').reset();
+    render();
+    $('lastSync').textContent = '已断开；本页数据与凭据已清空';
+  }
+  function startCountdown(version) {
+    clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      if (!alive(version)) return;
+      const cells = $('banRows').querySelectorAll('.countdown');
+      cells.forEach((cell, index) => { if (bans[index]) cell.textContent = remaining(bans[index].reset_at); });
+    }, 1000);
+  }
+  async function mutate(endpoint, body, onSuccess) {
+    if (!connected || syncing || mutating) return;
+    const version = generation;
+    mutating = true; clearTimeout(pollTimer); pollTimer = null; setControls();
+    try {
+      const data = await api(endpoint, 'POST', body);
+      if (!alive(version)) return;
+      if (!validBans(data.bans)) throw new Error('操作响应缺少有效 bans 列表；请重新同步核对状态。');
+      if (endpoint === 'codex/unban' && typeof data.cleared !== 'boolean') throw new Error('操作响应缺少 cleared 状态；请重新同步核对。');
+      if (endpoint === 'codex/unban-all' && (!Number.isSafeInteger(data.cleared_count) || data.cleared_count < 0)) throw new Error('操作响应缺少 cleared_count；请重新同步核对。');
+      bans = data.bans; render();
+      setMessage('message', onSuccess(data), 'success');
+      $('lastSync').textContent = '最近同步 ' + timestamp(new Date().toISOString());
+    } catch (error) {
+      if (alive(version) && error.authenticationFailed) {
+        disconnect();
+        setMessage('syncError', error.message + ' 已停止轮询并清空本页凭据与记录。', 'error');
+      } else if (alive(version) && error.name !== 'AbortError') setMessage('message', error.message, 'error');
+    } finally {
+      if (alive(version)) { mutating = false; setControls(); schedule(version); }
+    }
+  }
+  $('connectionForm').addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (connected) return;
+    managementKey = $('managementKey').value.trim();
+    $('managementKey').value = '';
+    if (!managementKey) { setMessage('message', '请输入 CPAMP 管理 Key。', 'error'); return; }
+    connected = true; paused = false; generation++;
+    setMessage('message', '已连接管理会话，正在读取禁用记录。');
+    setControls();
+    const version = generation;
+    startCountdown(version);
+    sync(version);
+  });
+  $('disconnectButton').addEventListener('click', disconnect);
+  window.addEventListener('pagehide', disconnect);
+  $('pollButton').addEventListener('click', () => {
+    if (!connected || syncing || mutating) return;
+    paused = !paused; clearTimeout(pollTimer); pollTimer = null; setControls();
+    if (paused) { clearInterval(countdownTimer); countdownTimer = null; }
+    else { startCountdown(generation); sync(); }
+  });
+  $('reloadButton').addEventListener('click', () => sync());
+  $('unbanAllButton').addEventListener('click', () => {
+    if (!connected || syncing || mutating || bans.length === 0) return;
+    if (!window.confirm('确认清除当前插件进程内的全部 Codex 429 临时禁用记录？')) return;
+    if (!window.confirm('再次确认：仅清除本插件内存记录，不会清除 CPA 内建冷却或 CPAMP 禁用文件，也无法据此强制恢复流量。继续吗？')) return;
+    mutate('codex/unban-all', {}, (data) => '已清除 ' + data.cleared_count + ' 条插件内临时禁用记录。');
+  });
+  $('banRows').addEventListener('click', (event) => {
+    const button = event.target && event.target.closest ? event.target.closest('[data-action="unban"]') : null;
+    if (!button || !connected || syncing || mutating) return;
+    const authId = button.dataset.authId;
+    if (!authId) return;
+    mutate('codex/unban', {auth_id: authId}, (data) => data.cleared ? '已清除该 auth_id 的插件内禁用记录。' : '该记录未发生变化，已同步服务端返回状态。');
+  });
+  render();
+})();
+</script>
+</body>
+</html>

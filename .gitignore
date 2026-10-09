@@ -1,0 +1,8 @@
+/dist/
+/config.local.yaml
+/runtime/
+/auths/
+/.env
+/.env.*
+*.so
+*.h
