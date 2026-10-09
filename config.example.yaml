@@ -38,6 +38,12 @@ plugins:
       model-prefix:
         enabled: true
         value: "commandcode"
+      # 同一上游模型的兼容名称仍共享账号池，不创建独立凭据或并发计数。
+      model-aliases:
+        cc-deepseek-v4.1-flash: deepseek/deepseek-v4.1-flash
+        cc-deepseek-v4.1-flash-fast: deepseek/deepseek-v4.1-flash-fast
+        deepseek/deepseek-v4.1-flash: deepseek/deepseek-v4.1-flash
+        deepseek/deepseek-v4.1-flash-fast: deepseek/deepseek-v4.1-flash-fast
       pool:
         auth-dir: "/absolute/path/to/isolated-test/auths"
         # Omit state-path to use <auth-dir>/.commandcode-pool/state.json.

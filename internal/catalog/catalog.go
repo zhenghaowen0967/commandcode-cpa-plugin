@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 
@@ -240,8 +241,10 @@ func (m *Manager) fail(category string) error {
 // extraWarns are caller-supplied snapshot diagnostics (e.g. decode-level
 // shape-drift notices) recorded alongside the per-entry ones.
 func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
-	models := make([]ModelRecord, 0, len(entries))
-	index := make(map[string]ModelRecord, len(entries)*2)
+	models := make([]ModelRecord, 0, len(entries)+len(m.cfg.ModelAliases))
+	index := make(map[string]ModelRecord, len(entries)*2+len(m.cfg.ModelAliases))
+	canonical := make(map[string]ModelRecord, len(entries))
+	canonicalIDs := make(map[string]struct{}, len(entries))
 	var unsup []UnsupportedModel
 	var warns []string
 	warns = append(warns, extraWarns...)
@@ -251,6 +254,7 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 			unsup = append(unsup, UnsupportedModel{Reason: "missing id"})
 			continue
 		}
+		canonicalIDs[e.ID] = struct{}{}
 		if seen[e.ID] {
 			warns = append(warns, fmt.Sprintf("duplicate model %q ignored; keeping first occurrence", e.ID))
 			continue
@@ -331,6 +335,48 @@ func (m *Manager) swap(entries []rawModel, extraWarns ...string) {
 		models = append(models, rec)
 		index[rec.PublicID] = rec
 		index[rec.UpstreamID] = rec
+		canonical[rec.UpstreamID] = rec
+	}
+
+	aliases := make([]string, 0, len(m.cfg.ModelAliases))
+	for alias := range m.cfg.ModelAliases {
+		aliases = append(aliases, alias)
+	}
+	sort.Strings(aliases)
+	for _, alias := range aliases {
+		target := m.cfg.ModelAliases[alias]
+		rec, ok := canonical[target]
+		if !ok {
+			if _, isAlias := m.cfg.ModelAliases[target]; isAlias {
+				warns = append(warns, fmt.Sprintf("model alias %q target %q is another alias; alias chains are not allowed", alias, target))
+			} else {
+				warns = append(warns, fmt.Sprintf("model alias %q target %q is not a routable canonical model", alias, target))
+			}
+			continue
+		}
+		if alias == rec.PublicID {
+			continue
+		}
+		if alias != target {
+			if _, isCanonicalID := canonicalIDs[alias]; isCanonicalID {
+				warns = append(warns, fmt.Sprintf(
+					"model alias %q for %q collides with canonical model id %q; alias was not published",
+					alias, target, alias,
+				))
+				continue
+			}
+		}
+		if other, exists := index[alias]; exists && other.UpstreamID != rec.UpstreamID {
+			warns = append(warns, fmt.Sprintf(
+				"model alias %q for %q collides with model %q; alias was not published",
+				alias, target, other.UpstreamID,
+			))
+			continue
+		}
+		rec.PublicID = alias
+		models = append(models, rec)
+		// 仅允许本模型的裸上游名复用索引，不能占用其他模型的名称。
+		index[alias] = rec
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()

@@ -35,6 +35,9 @@ func TestLoadMinimalAppliesAllDefaults(t *testing.T) {
 	if c.ProxyURL != "" {
 		t.Errorf("ProxyURL = %q, want no explicit proxy", c.ProxyURL)
 	}
+	if c.ModelAliases != nil {
+		t.Errorf("ModelAliases = %+v, want no aliases by default", c.ModelAliases)
+	}
 	if !c.ModelPrefix.Enabled || c.ModelPrefix.Value != "commandcode" {
 		t.Errorf("ModelPrefix = %+v", c.ModelPrefix)
 	}
@@ -115,6 +118,9 @@ route-overrides:
   gpt-5.6-luna:
     protocol: responses
     endpoint: /v1/responses
+model-aliases:
+  cc-deepseek-v4.1-flash: deepseek/deepseek-v4.1-flash
+  cc-deepseek-v4.1-fast: deepseek/deepseek-v4.1-fast
 allow-http: true
 request-timeout: 5m
 max-response-bytes: 1024
@@ -150,6 +156,12 @@ max-response-bytes: 1024
 	o, ok := c.RouteOverrides["gpt-5.6-luna"]
 	if !ok || o.Protocol != "responses" || o.Endpoint != "/v1/responses" {
 		t.Errorf("RouteOverrides = %+v", c.RouteOverrides)
+	}
+	if got, want := c.ModelAliases["cc-deepseek-v4.1-flash"], "deepseek/deepseek-v4.1-flash"; got != want {
+		t.Errorf("ModelAliases[cc-deepseek-v4.1-flash] = %q, want %q", got, want)
+	}
+	if got, want := c.ModelAliases["cc-deepseek-v4.1-fast"], "deepseek/deepseek-v4.1-fast"; got != want {
+		t.Errorf("ModelAliases[cc-deepseek-v4.1-fast] = %q, want %q", got, want)
 	}
 	if !c.AllowHTTP {
 		t.Errorf("AllowHTTP = false")
@@ -305,6 +317,11 @@ func TestLoadRejections(t *testing.T) {
 		{"prefix enabled empty value", "model-prefix:\n  enabled: true\n  value: \"\"\n" + withKey, "model-prefix.value: invalid provider-ID characters"},
 		{"prefix with space", "model-prefix:\n  value: has space\n" + withKey, "model-prefix.value: invalid provider-ID characters"},
 		{"prefix leading dash", "model-prefix:\n  value: -lead\n" + withKey, "model-prefix.value: invalid provider-ID characters"},
+		{"model alias empty name", "model-aliases:\n  \"\": deepseek/model\n" + withKey, "model-aliases: alias names must not be empty"},
+		{"model alias name whitespace", "model-aliases:\n  \"cc alias\": deepseek/model\n" + withKey, "model-aliases: alias names must not be empty"},
+		{"model alias target empty", "model-aliases:\n  cc-alias: \"\"\n" + withKey, "model-aliases[\"cc-alias\"]: target must not be empty"},
+		{"model alias target whitespace", "model-aliases:\n  cc-alias: \"deepseek/ model\"\n" + withKey, "model-aliases[\"cc-alias\"]: target must not be empty"},
+		{"model alias target control", "model-aliases:\n  cc-alias: \"deepseek/\\tmodel\"\n" + withKey, "model-aliases[\"cc-alias\"]: target must not be empty"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -8,9 +8,11 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"gopkg.in/yaml.v3"
 )
@@ -68,6 +70,7 @@ type Config struct {
 	Catalog          Catalog
 	Protocols        Protocols
 	RouteOverrides   map[string]RouteOverride
+	ModelAliases     map[string]string
 	AllowHTTP        bool
 	RequestTimeout   time.Duration
 	MaxResponseBytes int64
@@ -95,6 +98,7 @@ type rawConfig struct {
 	Catalog          rawCatalog               `yaml:"catalog"`
 	Protocols        rawProtocols             `yaml:"protocols"`
 	RouteOverrides   map[string]RouteOverride `yaml:"route-overrides"`
+	ModelAliases     map[string]string        `yaml:"model-aliases"`
 	AllowHTTP        bool                     `yaml:"allow-http"`
 	RequestTimeout   *string                  `yaml:"request-timeout"`
 	MaxResponseBytes *int64                   `yaml:"max-response-bytes"`
@@ -182,6 +186,7 @@ func Load(yamlBytes []byte) (Config, error) {
 			Messages:        orDefault(raw.Protocols.Messages, true),
 			Responses:       orDefault(raw.Protocols.Responses, true),
 		},
+		ModelAliases:     raw.ModelAliases,
 		RouteOverrides:   raw.RouteOverrides,
 		AllowHTTP:        raw.AllowHTTP,
 		RequestTimeout:   requestTimeout,
@@ -257,6 +262,20 @@ func (c Config) validate() error {
 		}
 		if !strings.HasPrefix(o.Endpoint, "/") {
 			return fmt.Errorf("route-overrides[%s].endpoint: must start with /", name)
+		}
+	}
+	aliases := make([]string, 0, len(c.ModelAliases))
+	for alias := range c.ModelAliases {
+		aliases = append(aliases, alias)
+	}
+	sort.Strings(aliases)
+	for _, alias := range aliases {
+		target := c.ModelAliases[alias]
+		if !validModelID(alias) {
+			return fmt.Errorf("model-aliases: alias names must not be empty or contain whitespace/control characters")
+		}
+		if !validModelID(target) {
+			return fmt.Errorf("model-aliases[%q]: target must not be empty or contain whitespace/control characters", alias)
 		}
 	}
 	if c.ModelPrefix.Enabled && !validPrefix(c.ModelPrefix.Value) {
@@ -340,6 +359,18 @@ func validPrefix(s string) bool {
 			return false
 		}
 		if !alnum && r != '.' && r != '_' && r != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+func validModelID(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, r := range s {
+		if unicode.IsSpace(r) || unicode.IsControl(r) {
 			return false
 		}
 	}

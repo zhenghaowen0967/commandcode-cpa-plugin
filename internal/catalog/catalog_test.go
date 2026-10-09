@@ -1142,3 +1142,163 @@ func TestRefreshDataKeyAbsentVsEmpty(t *testing.T) {
 		t.Fatalf("intended clear must stay silent, got %v", got)
 	}
 }
+
+func TestModelAliasesPublishAndLookupCanonicalTargets(t *testing.T) {
+	cfg := testCfg()
+	cfg.ModelAliases = map[string]string{
+		"cc-deepseek-v4.1-flash":                  "deepseek/deepseek-v4.1-flash",
+		"cc-deepseek-v4.1-fast":                   "deepseek/deepseek-v4.1-fast",
+		"deepseek/deepseek-v4.1-flash":            "deepseek/deepseek-v4.1-flash",
+		"commandcode/deepseek/deepseek-v4.1-fast": "deepseek/deepseek-v4.1-fast",
+	}
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(`{"data":[
+		{"id":"deepseek/deepseek-v4.1-flash","context_length":8192},
+		{"id":"deepseek/deepseek-v4.1-fast"}
+	]}`)}}
+	m := newManager(cfg, fc)
+	mustRefresh(t, m)
+
+	models := m.Models()
+	if len(models) != 5 {
+		t.Fatalf("models = %+v, want two canonical records and three additional aliases", models)
+	}
+	if models[2].PublicID != "cc-deepseek-v4.1-fast" || models[3].PublicID != "cc-deepseek-v4.1-flash" ||
+		models[4].PublicID != "deepseek/deepseek-v4.1-flash" {
+		t.Errorf("alias records are not appended in deterministic alias order: %+v", models[2:])
+	}
+	for alias, wantUpstream := range map[string]string{
+		"cc-deepseek-v4.1-flash":       "deepseek/deepseek-v4.1-flash",
+		"cc-deepseek-v4.1-fast":        "deepseek/deepseek-v4.1-fast",
+		"deepseek/deepseek-v4.1-flash": "deepseek/deepseek-v4.1-flash",
+	} {
+		rec, ok := m.Lookup(alias)
+		if !ok || rec.UpstreamID != wantUpstream {
+			t.Errorf("Lookup(%q) = %+v, %v; want upstream %q", alias, rec, ok, wantUpstream)
+		}
+	}
+	flash, ok := m.Lookup("cc-deepseek-v4.1-flash")
+	if !ok || flash.UpstreamID != "deepseek/deepseek-v4.1-flash" || flash.ContextLimit != 8192 {
+		t.Errorf("flash alias did not retain canonical metadata: %+v, %v", flash, ok)
+	}
+	if rec, ok := m.Lookup("commandcode/deepseek/deepseek-v4.1-fast"); !ok || rec.UpstreamID != "deepseek/deepseek-v4.1-fast" {
+		t.Errorf("canonical public ID alias duplicated or lost: %+v, %v", rec, ok)
+	}
+	if got := m.Warnings(); len(got) != 0 {
+		t.Errorf("unexpected alias warnings: %v", got)
+	}
+}
+
+func TestModelAliasesRejectChainsAndMissingTargets(t *testing.T) {
+	cfg := testCfg()
+	cfg.ModelAliases = map[string]string{
+		"cc-first":  "cc-second",
+		"cc-second": "not-in-catalog",
+	}
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(`{"data":[{"id":"deepseek/deepseek-v4.1-flash"}]}`)}}
+	m := newManager(cfg, fc)
+	mustRefresh(t, m)
+
+	if got := len(m.Models()); got != 1 {
+		t.Fatalf("models = %+v, aliases with invalid targets must not publish", m.Models())
+	}
+	if _, ok := m.Lookup("cc-first"); ok {
+		t.Fatal("chained alias unexpectedly resolves")
+	}
+	if got := m.Warnings(); len(got) != 2 ||
+		!strings.Contains(got[0], `"cc-first" target "cc-second" is another alias`) ||
+		!strings.Contains(got[1], `"cc-second" target "not-in-catalog" is not a routable canonical model`) {
+		t.Fatalf("warnings = %v, want deterministic chain and missing-target diagnostics", got)
+	}
+}
+
+func TestModelAliasCollisionFailsClosed(t *testing.T) {
+	cfg := testCfg()
+	cfg.ModelAliases = map[string]string{"commandcode/foo": "bar"}
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{StatusCode: 200, Body: []byte(`{"data":[{"id":"foo"},{"id":"bar"}]}`)}}
+	m := newManager(cfg, fc)
+	mustRefresh(t, m)
+
+	if got := len(m.Models()); got != 2 {
+		t.Fatalf("models = %+v, colliding alias must not replace or duplicate canonical entries", m.Models())
+	}
+	if rec, ok := m.Lookup("commandcode/foo"); !ok || rec.UpstreamID != "foo" {
+		t.Fatalf("collision overwrote canonical lookup: %+v, %v", rec, ok)
+	}
+	if got := m.Warnings(); len(got) != 1 ||
+		!strings.Contains(got[0], `model alias "commandcode/foo" for "bar" collides with model "foo"`) {
+		t.Fatalf("warnings = %v, want fail-closed alias collision diagnostic", got)
+	}
+}
+
+func TestModelAliasTargetMustBeRoutableInCurrentSnapshot(t *testing.T) {
+	cfg := testCfg()
+	cfg.Protocols.ChatCompletions = false
+	cfg.ModelAliases = map[string]string{"cc-deepseek": "deepseek/deepseek-v4.1-flash"}
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{
+		StatusCode: 200,
+		Body:       []byte(`{"data":[{"id":"deepseek/deepseek-v4.1-flash"}]}`),
+	}}
+	m := newManager(cfg, fc)
+	mustRefresh(t, m)
+
+	if got := m.Models(); len(got) != 0 {
+		t.Fatalf("models = %+v, unroutable canonical target must not publish an alias", got)
+	}
+	if _, ok := m.Lookup("cc-deepseek"); ok {
+		t.Fatal("alias to an unroutable model unexpectedly resolves")
+	}
+	if got := m.Unsupported(); len(got) != 1 || got[0].UpstreamID != "deepseek/deepseek-v4.1-flash" {
+		t.Fatalf("unsupported = %+v, want disabled canonical target", got)
+	}
+	if got := m.Warnings(); len(got) != 1 ||
+		!strings.Contains(got[0], `model alias "cc-deepseek" target "deepseek/deepseek-v4.1-flash" is not a routable canonical model`) {
+		t.Fatalf("warnings = %v, want unroutable-target diagnostic", got)
+	}
+}
+
+func TestModelAliasCannotClaimFilteredCanonicalID(t *testing.T) {
+	cfg := testCfg()
+	cfg.Protocols.Messages = false
+	cfg.RouteOverrides = map[string]config.RouteOverride{
+		"cc-legacy": {Protocol: "messages", Endpoint: "/v1/messages"},
+	}
+	cfg.ModelAliases = map[string]string{
+		"cc-legacy":   "other/model",
+		"other/model": "other/model",
+	}
+	fc := &fakeClient{resp: pluginapi.HTTPResponse{
+		StatusCode: 200,
+		Body: []byte(`{"data":[
+			{"id":"cc-legacy"},
+			{"id":"cc-legacy"},
+			{"id":"other/model"}
+		]}`),
+	}}
+	m := newManager(cfg, fc)
+	mustRefresh(t, m)
+
+	models := m.Models()
+	if len(models) != 2 || models[0].UpstreamID != "other/model" || models[1].PublicID != "other/model" {
+		t.Fatalf("models = %+v, want canonical other/model plus its bare self-alias", models)
+	}
+	if _, ok := m.Lookup("cc-legacy"); ok {
+		t.Fatal("alias claimed the canonical ID of a protocol-filtered model")
+	}
+	if rec, ok := m.Lookup("other/model"); !ok || rec.UpstreamID != "other/model" || rec.PublicID != "other/model" {
+		t.Fatalf("bare self-alias lookup = %+v, %v; want the canonical model", rec, ok)
+	}
+	if got := m.Unsupported(); len(got) != 1 || got[0].UpstreamID != "cc-legacy" {
+		t.Fatalf("unsupported = %+v, want the filtered canonical model", got)
+	}
+	warnings := m.Warnings()
+	foundCollision, foundDuplicate := false, false
+	for _, warning := range warnings {
+		foundCollision = foundCollision || strings.Contains(warning,
+			`model alias "cc-legacy" for "other/model" collides with canonical model id "cc-legacy"`)
+		foundDuplicate = foundDuplicate || strings.Contains(warning,
+			`duplicate model "cc-legacy" ignored`)
+	}
+	if !foundCollision || !foundDuplicate {
+		t.Fatalf("warnings = %v, want filtered-canonical collision and duplicate diagnostics", warnings)
+	}
+}

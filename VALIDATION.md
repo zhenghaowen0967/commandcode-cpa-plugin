@@ -1,6 +1,56 @@
 # 本地与官方模拟联调验证记录（2026-10-08）
 
-## 生产切换完成：0.1.2-local（2026-10-09 08:19 UTC，最新）
+## 生产迁入完成：0.1.3-local 全路由接管（2026-10-09 03:08 UTC）
+
+用户授权“上线迁入，没问题就交付”后，用同一已验证操作器执行 production stage→finish：
+
+- 迁移路径：guard80 暂存（候选 5e50c41f…）→ 新 guard 收到 4 条 usage 回执 → hold 移交
+  （当日 hold=0，空导入）→ 暂停准入自然排空 → DELETE 旧 update → 同 Manager 激活 full →
+  精确删除唯一 `CommandCode-Codex` 直连 → 恢复账号。全程 PID1948812、二进制 a4eaa1c1 不变，
+  无重启、无 unban、无取消在途流；无关配置（河图三直连等）逐字节保护。
+- 读回验证：唯一 `commandcode-pool-next` 0.1.3-local、full、一组两菜单；两真实账号原
+  Group、enabled、cap10、inflight0、eligible；磁盘 compat 仅剩 hetune-china/gpt/grok；
+  六个名称（旧两 alias、两裸上游名、commandcode/ 两名）全部 owned_by=commandcode-pool，
+  `CommandCode-Codex` owner 消失；旧库文件已移除，私有备份 0700。
+- 有界真实请求：旧名 `cc-deepseek-v4.1-flash` POST 200、finish=stop、正文“成功”；请求事件
+  pick/acquire/settle 同一 request_id 各一次，owner 释放，账号回到 eligible。首验 16 token
+  全用于 reasoning 正文为空，属已知行为，按 0.1.2 同口径以 256 token 补验通过。
+- 证据：`.scratch/legacy-route-production-finish-20261009.json`（操作器报告+读回+真实请求）。
+- 边界不变：旧直连既有在途调用按原上下文自然结束（无全局观测，不取消）；全池不可用映射
+  HTTP500；全局 DeepSeek≤30 协调不因此声称完成。commit/push/Release 未授权，待分别批准。
+
+## 旧 CommandCode 路由迁入候选：0.1.3-local（2026-10-09）
+
+用户要求所有 CommandCode 请求，包括旧 `cc-deepseek-v4.1-flash[-fast]` 直连，都进入同一
+账号池。本次新增配置别名与 canonical 目录映射；旧名称、裸上游名和 `commandcode/`
+名称进入相同的 Pool.Pick / Pool.Acquire，不新建账号或拆分 cap。当前候选尚未生产部署。
+
+- config/catalog 包普通及 race 通过；覆盖空白/控制字符、别名链、缺失目标、跨模型碰撞、
+  self-alias、目标被协议开关排除和默认行为兼容。
+- plugin 新增集成回归普通及 race 通过：6 个模型名称 × 3 种下游协议非流执行，规范上游
+  model 改写与 Acquire/Settle；额度驱动旧名实际选号；跨名称/两 Key 共享 Group cap；
+  全部额度不可用时不回退，也不发上游 I/O。
+- 首次全模块检查仅 `TestManagementRegistration` 失败，因为版本断言仍为 0.1.2；已按
+  本次版本变更同步为 0.1.3。之后 plugin 普通、所有 internal race、vet、diffcheck 通过。
+- 独立 Sonnet 审查确认 alias 可撞被协议过滤的 canonical ID；已修复并增加含重复目录项
+  回归，普通/race 通过，窄复核确认消除；主会话又复验旧名集成 race。
+- 首轮原生 `legacy-check-1` 因公开 mock 把 `/alpha/...` 错放到 `/provider/v1/alpha/...`
+  而额度刷新502，失败保留。修正 mock 后 `legacy-check-2` 八项全通过：实际旧名、新名和
+  bare 名的 Acquire/Settle、额度翻转择优、跨名称共享cap1、正常流、取消后I/O清理再释放，
+  全不可用不发上游。后者在当前宿主返回HTTP500，不宣称429或等待队列合同。
+- 最终代码候选库 SHA256 `6f5698d292bdf739d1f43c00e6fddf254b01220fe42255db170826bede771a2b`；
+  c-shared构建及包内九项校验清单通过。库成功构建不等于已经正式部署。
+- 新迁入操作器16项合成fake通过；独立复杂恢复审查无P1、2个P2（rollback遗留悬空NEW节点、
+  过期hold误报阻断前向恢复）已修复并补回归。同生产二进制 a4eaa1c1 的完整热迁入
+  `hot-check-7` 通过：旧full100继续服务、新guard独立接管hold、自然排空、删除旧实例、
+  同Manager激活full、故障注入删除旧直连后前向recover、六名称实际经新池Acquire/Settle、
+  重复finish/recover现实读回、一组两菜单。历史 0.1.2 生产结果不等同本次迁入验收。
+- 热迁入过程真实暴露并修复了5个只在真实宿主出现的问题：夹具v7→v8配置版本转换、SDK
+  首写默认字段、auth文件名二次hash查询错误、SDK可选元数据字段必填化、v0运行时投影与
+  完整节点摘要不等。每轮失败实例与私有状态完整归档于
+  `.scratch/native-legacy/runtime-old-*-failed-hot[1-5]` 及 hot-migration-evidence/。
+
+## 生产切换完成：0.1.2-local（2026-10-09 08:19 UTC，历史上线）
 
 验证全部通过后按用户明确授权完成生产热切换，全程无重启、无 unban、无取消在途流：
 

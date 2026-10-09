@@ -1,5 +1,11 @@
 # CommandCode 原生 CPA 账号池插件
 
+## 当前迁入改造（2026-10-09）
+
+源码版本 `0.1.3-local` 新增 `model-aliases`，用于把旧 CommandCode 客户端模型名接到同一
+账号池，保留原 `commandcode/` 名称。别名不新建账号，也不拆分真实 Group 的并发计数。
+当前生产仍是下述 `0.1.2-local`；本轮迁入候选正在验证，不能把源码改动当已部署。
+
 `commandcode-pool` / `0.1.2-local` 已于 2026-10-09 完成生产热切换：现用 CPA 8317 以
 HostID `commandcode-pool-update`（优先级100，full）运行本版本，两真实账号保持启用、
 原 Group 与 cap10，CPAMP 一组两菜单，无重启无 unban。请求汇总页 `/pool` 一请求一行；
@@ -63,7 +69,7 @@ Codex hold 与 Usage 计数；已有账号池活动时不能反向切回 `true`�
 会保留最后有效模式的注册能力、Guard 与计数，并提供脱敏 `activation_error`；不会仅因非法
 配置而让宿主移除保护。首次注册失败仍报错。该行为已通过隔离原生检查，未等同生产切换。
 
-## 现用接入限制（2026-10-08）
+## 历史接入限制（2026-10-08，非当前迁入目标）
 
 现用 CPA `8317` / CPAMP `18317` 运行 `0.1.1-local` 完整池，仅保留一组菜单，
 两个真实账号保持启用，最后已验当前cap=10/10。请求头/显式代理、真实身份/额度、原生管理API与
@@ -72,6 +78,28 @@ Codex hold 与 Usage 计数；已有账号池活动时不能反向切回 `true`�
 本轮未改其他业务路由，也没有重启服务。旧cc-deepseek直连不受新池cap控制，使用新池应选
 `commandcode/` 命名空间中的模型；不是所有目录模型或高容量生产负载都已测试。
 旧版与当前源码、模拟检查和现场运行证据分层见 [VALIDATION.md](VALIDATION.md)。
+
+## 旧客户端模型名兼容
+
+在插件配置节点中设置客户端名称到规范上游 ID 的映射：
+
+```yaml
+model-aliases:
+  cc-deepseek-v4.1-flash: deepseek/deepseek-v4.1-flash
+  cc-deepseek-v4.1-flash-fast: deepseek/deepseek-v4.1-flash-fast
+  deepseek/deepseek-v4.1-flash: deepseek/deepseek-v4.1-flash
+  deepseek/deepseek-v4.1-flash-fast: deepseek/deepseek-v4.1-flash-fast
+```
+
+- 原 `commandcode/deepseek/deepseek-v4.1-flash[-fast]` 名称继续发布；旧别名和裸上游名
+  也由 `commandcode-pool` 发布，实际请求 body 使用规范上游 ID。
+- 所有名称共享现有凭据、真实账号 Group、额度选号和执行前硬 cap；别名不增加并发名额。
+- 目标必须在当前可路由上游目录中。缺失目标、别名链及跨模型名称冲突不会被发布；诊断
+  会保留原因，且不会覆盖其他模型。未配置映射时维持原行为。
+- 完整迁入必须移除旧 `openai-compatibility` CommandCode 直连条目；只增加别名而继续保留
+  旧 provider 会留下绕过账号池的候选。这是受控生产变更，不由构建脚本自动执行。
+- 不使用 CPA 的 OAuth alias 代替此映射；当前 API-key auth 不走该别名通道。响应转换
+  保持现有上游模型回显行为，不额外改写业务响应。
 
 ## 构建与测试
 

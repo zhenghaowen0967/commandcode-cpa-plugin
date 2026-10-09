@@ -31,7 +31,7 @@ const (
 	originalPluginID  = "commandcode-pool"
 	nextPluginID      = "commandcode-pool-next"
 	updatePluginID    = "commandcode-pool-update"
-	pluginVersion     = "0.1.2-local"
+	pluginVersion     = "0.1.3-local"
 	viewPluginVersion = "0.1.1-view"
 )
 
@@ -42,7 +42,7 @@ var pluginName = originalPluginID
 var pluginRole = "full"
 
 // 本地安装版本不指向基座的发行包，防止自动更新覆盖本插件。
-const githubRepoURL = "https://github.com/zhenghaowen0967/doc_mana"
+const githubRepoURL = "https://github.com/zhenghaowen0967/commandcode-cpa-plugin"
 
 // registerRefreshTimeout bounds ONLY the synchronous initial/reconfigure
 // refreshOnce so a slow catalog cannot block host startup/reconfigure for a

@@ -6,3 +6,5 @@
 /.env.*
 *.so
 *.h
+/.scratch/
+/.project-map/
