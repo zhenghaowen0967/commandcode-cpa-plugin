@@ -520,7 +520,7 @@ func TestExecutorSessionFallbackAndMalformedInput(t *testing.T) {
 				t.Fatalf("handle: %v", err)
 			}
 			env := decodeEnv(t, resp)
-			if env.OK || env.Error == nil || env.Error.Code != string(errclass.ClassTranslation) {
+			if env.OK || env.Error == nil || env.Error.Code != string(errclass.ClassTranslation) || env.Error.HTTPStatus != http.StatusBadRequest || env.Error.Retryable {
 				t.Fatalf("envelope = %s", resp)
 			}
 			if len(f.callsOf(testNativeHTTPDo)) != beforeDo || len(f.callsOf(testNativeHTTPDoStream)) != beforeStream {
@@ -614,7 +614,7 @@ func TestExecuteUnknownModelIs404Envelope(t *testing.T) {
 func TestExecuteUnsupportedSourceFormat(t *testing.T) {
 	m, _ := newExecManager(t)
 	env := mustExecute(t, m, "commandcode/glm-5.3", "bogus-format", []byte(ccRequestBody))
-	if env.OK || env.Error == nil || env.Error.Code != string(errclass.ClassUnsupported) {
+	if env.OK || env.Error == nil || env.Error.Code != string(errclass.ClassUnsupported) || env.Error.HTTPStatus != http.StatusBadRequest || env.Error.Retryable {
 		t.Fatalf("envelope = %+v", env.Error)
 	}
 }
@@ -760,7 +760,7 @@ func TestExecuteStreamRoutedFromBothMethods(t *testing.T) {
 		if err != nil {
 			t.Fatalf("execute_stream bad format: %v", err)
 		}
-		if env := decodeEnv(t, resp); env.OK || env.Error == nil || env.Error.Code != string(errclass.ClassUnsupported) {
+		if env := decodeEnv(t, resp); env.OK || env.Error == nil || env.Error.Code != string(errclass.ClassUnsupported) || env.Error.HTTPStatus != http.StatusBadRequest || env.Error.Retryable {
 			t.Fatalf("bad-format execute_stream envelope = %s", resp)
 		}
 	})

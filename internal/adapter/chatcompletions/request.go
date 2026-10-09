@@ -151,6 +151,10 @@ func claudeToChat(upstreamModel string, body []byte, ts *pluginapi.ThinkingSuppo
 	if eErr != nil {
 		return nil, eErr
 	}
+	src.Messages, eErr = shared.NormalizeClaudeHistory(src.Messages, EndpointPath)
+	if eErr != nil {
+		return nil, eErr
+	}
 	out := &ccRequest{
 		Model:       upstreamModel,
 		Stream:      src.Stream,

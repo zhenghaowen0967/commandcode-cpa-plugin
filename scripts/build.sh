@@ -46,7 +46,7 @@ esac
 if [[ $plugin_role == view && $plugin_id != commandcode-pool ]]; then
   fail 'PLUGIN_ROLE=view requires PLUGIN_ID=commandcode-pool'
 fi
-version_tag=0.1.4-local
+version_tag=0.1.5-local
 artifact_base="$plugin_id"
 if [[ $plugin_role == view ]]; then
   version_tag=0.1.1-compatview

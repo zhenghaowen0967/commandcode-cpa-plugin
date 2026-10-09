@@ -1,5 +1,46 @@
 # 本地与官方模拟联调验证记录
 
+## Anthropic 兼容修复与正式接管：0.1.5-local（2026-10-09）
+
+- 基线为已合并 GLM 修复的 main `4a3b4dd52d8e33d22ec8535e280f711e9efb72b7`；
+  本轮兼容工作区 `fix/anthropic-reminder-v015-20261009`，不混入原 dirty 工作区。
+- 顶层 system 保留；历史 system string/text blocks 包装 user 提醒。并行工具结果跨 user
+  缓冲，完整一一对应后按调用 ID 对齐、结果先于提醒和普通内容；不伪造或丢掉不完整结果。
+  Chat/Responses 同合同，保留 RawMessage 数值精度、工具 ID、结果和 is_error 标记。
+- 仅上游 I/O 前输入/建请求错误改为 400、retryable=false，释放 owner；上游及响应转换
+  失败不泛化为 400。未知角色/块仍明确拒绝。
+- 受影响 Go 普通/race：`./internal/adapter/... ./internal/plugin ./internal/codexguard`，
+  以及相同范围 vet 全通过。脚本替身 8 项与删除回复丢失恢复 5 项全部通过。
+- 独立 Sonnet 初审发现跨 user 工具结果和删除回复丢失回退两处边界，均补修复/回归；
+  增量复核确认闭合，无剩余明确阻断项，不以初轮测试代替修复后验证。
+- 同生产 core 二进制（SHA256 `a4eaa1c1…`）的原生 A/B：旧 0.1.4 复现 500 且无上游
+  I/O；新 Chat/Responses、非流/流、跨 user 并行结果均 200/end_turn，坏输入 400 后合法
+  请求 200，owner 回零。13 场景通过，真实模型请求 0；证据
+  `.scratch/anthropic-compat-native/check-1791532428051296476.json`。
+- 隔离热接管通过：同 NEW Manager guard→full，三条测试 hold（包括新节点更晚 reset 和
+  新节点独有记录）保全；两账号 cap10/enabled、不改无关配置，接管后兼容请求 200。
+  证据 `.scratch/anthropic-compat-native/handoff-1791532486363513794.json`。
+- 正式 07:56:23 UTC stage→finish PASS：guard80/Usage回执/hold maxmerge/guard110/
+  暂停旧准入并自然 drain/删除旧实例/同 NEW Manager full100/恢复原账号/最终读回。
+  PID1948812/core 保持，无重启、取消流、Unban、legacy 路由删除。唯一活动插件
+  `commandcode-pool-next` / `0.1.5-local`，两菜单、两账号原 Group/enabled/各 cap10。
+  正式 hold 前后均为 0；私有备份只在 core `anthropic-compat-migration-20261009/`。
+- 活动库 `commandcode-pool-next-v0.1.5-anthropiccompat.so`，SHA256
+  `d61b86eab8e53aecdcb89460724f588ba129a4723f6f6b6cc2b50d20809eebd4`。
+- 真实 CLI 验收 PASS：经实际配置 `127.0.0.1:15721/v1/messages` → 当前 Claude provider
+  → CPA8317 → CommandCode，明确请求 `cc-deepseek-v4.1-flash`，没有改默认模型映射。
+  非流与历史工具结果间提醒的流式各一次，均 200、正文“兼容成功”、end_turn；流式具有
+  message_stop、无新工具调用，两侧日志按各自 session 精确关联且 CPA usage failed=0。
+  CCS 的 request_model 是客户端 cc 名，model 是上游 deepseek 名；初轮错误字段断言仅
+  导致报告失败，非流请求已成功，修断言后只读复用原证据，仅补剩余流式，共 2 次真实
+  POST，没有重发非流。证据 `.scratch/anthropic-compat-real-chain-20261009T080013Z.json`。
+  验收后账号形状与所有未过期 hold 保全；正式最终 08:01:26 UTC 读回再次 PASS。
+- CLI 字段/correlation/resume 增量经独立 Sonnet 窄审，无新确认问题；5 项纯关联检测通过。
+- 当前日更仍只换 core，不覆盖插件及配置；未来 core ABI 和显式商店安装仍须复验。
+  上述上线验收阶段未提交、推送、tag 或发布 Release；后续源码归档提交与合并以 Git
+  历史和对应 PR 为准，不代表重新部署或重跑真实请求。以下均为对应旧版本的历史证据。
+
+
 ## 生产上线与真实 Desktop 验收：0.1.4-local（2026-10-09 06:17 UTC）
 
 - 用户要求立即上线后复用前版已验的受控接管步骤：guard80暂存→收到原生Usage回执→hold

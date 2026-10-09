@@ -154,11 +154,11 @@ func (m *Manager) handleExecute(request []byte) ([]byte, error) {
 	defer func() { m.finishExecution(res, transport, reason) }()
 	sessionID, eErr := resolveCommandCodeSessionID(req)
 	if eErr != nil {
-		return classEnvelope(eErr), nil
+		return requestValidationEnvelope(eErr), nil
 	}
 	upstreamBody, eErr := buildUpstreamRequest(res.rec.Protocol, res.rec.UpstreamID, req.SourceFormat, req.OriginalRequest, res.rec.Thinking)
 	if eErr != nil {
-		return classEnvelope(eErr), nil
+		return requestValidationEnvelope(eErr), nil
 	}
 
 	var transportErr error
@@ -377,6 +377,16 @@ func convertNonStream(route catalog.Route, sourceFormat string, status int, body
 	return nil, errclass.Translation("unsupported route")
 }
 
+func requestValidationEnvelope(e *errclass.Error) []byte {
+	if e != nil && e.StatusCode == 0 && (e.Class == errclass.ClassTranslation || e.Class == errclass.ClassUnsupported) {
+		requestErr := *e
+		requestErr.StatusCode = http.StatusBadRequest
+		requestErr.Retryable = false
+		return classEnvelope(&requestErr)
+	}
+	return classEnvelope(e)
+}
+
 // classEnvelope renders a classified failure as the wire error envelope;
 // ToEnvelopeError redacts and propagates Retryable/HTTPStatus host-side.
 func classEnvelope(e *errclass.Error) []byte {
@@ -440,11 +450,11 @@ func (m *Manager) executeStream(req executorRequest) ([]byte, error) {
 	}()
 	sessionID, eErr := resolveCommandCodeSessionID(req)
 	if eErr != nil {
-		return classEnvelope(eErr), nil
+		return requestValidationEnvelope(eErr), nil
 	}
 	upstreamBody, eErr := buildUpstreamRequest(res.rec.Protocol, res.rec.UpstreamID, req.SourceFormat, req.OriginalRequest, res.rec.Thinking)
 	if eErr != nil {
-		return classEnvelope(eErr), nil
+		return requestValidationEnvelope(eErr), nil
 	}
 	// The RPC streaming method is authoritative even when the inbound JSON
 	// did not explicitly include stream:true.

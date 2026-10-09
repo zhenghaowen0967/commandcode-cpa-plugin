@@ -48,7 +48,7 @@ func TestManagementRegistration(t *testing.T) {
 	}
 	var registration registrationResult
 	decodeResult(t, mustHandle(t, m, pluginabi.MethodPluginRegister, lifecycleRequestBody(t, testValidYAML)), &registration)
-	if registration.Metadata.Version != "0.1.4-local" {
+	if registration.Metadata.Version != "0.1.5-local" {
 		t.Fatalf("plugin version = %q, want new local version", registration.Metadata.Version)
 	}
 	if !registration.Capabilities.ManagementAPI {

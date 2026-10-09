@@ -308,6 +308,10 @@ func fromClaudeMessages(upstreamModel string, body []byte, ts *pluginapi.Thinkin
 	if eErr != nil {
 		return nil, eErr
 	}
+	src.Messages, eErr = shared.NormalizeClaudeHistory(src.Messages, EndpointPath)
+	if eErr != nil {
+		return nil, eErr
+	}
 	req := &responsesEnvelope{
 		Model:           upstreamModel,
 		MaxOutputTokens: &src.MaxTokens,
