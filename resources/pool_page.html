@@ -9,6 +9,7 @@
 :root{--bg:var(--app-bg,#101722);--surface:var(--app-surface,#162131);--raised:var(--app-surface-muted,#1c2b40);--line:var(--border-color,#30435b);--text:var(--text-primary,#edf3fc);--muted:var(--text-secondary,#afbed1);--blue:var(--primary-color,#83b8ff);--action:var(--primary-solid,var(--primary-color,#2563ce));--good:var(--data-badge-success-text,#a2debd);--warn:var(--data-badge-warning-text,#ffd18d);--bad:var(--data-badge-danger-text,#ffacb5);--radius:12px;font-family:"Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",sans-serif;font-size:14px;line-height:1.6}
 :root:not([data-cpamp-plugin-host='true']){color-scheme:dark}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}button,input,textarea,select{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}button,input,textarea,select{border:1px solid var(--line);border-radius:7px;background:var(--raised);color:var(--text)}button{padding:8px 13px;font-weight:600;white-space:nowrap}button:hover:not(:disabled){border-color:var(--blue)}button.primary{background:var(--action);border-color:var(--action);color:var(--primary-contrast,#fff)}button.danger{color:var(--bad)}button.small{padding:5px 9px;font-size:12px}input,select{padding:9px 11px;width:100%;min-width:0}textarea{padding:11px;width:100%;resize:vertical}input[type=checkbox]{width:18px;height:18px;accent-color:var(--blue)}:focus-visible{outline:2px solid var(--blue);outline-offset:3px}[hidden]{display:none!important}h1,h2,h3,p{margin:0}h1{font-size:28px;line-height:1.25;letter-spacing:-.03em}h2{font-size:18px;font-weight:650}h3{font-size:15px}.muted{color:var(--muted)}.tiny{font-size:12px}.mono{font-family:"SFMono-Regular",Consolas,monospace;font-variant-numeric:tabular-nums}.wrap{overflow-wrap:anywhere}.good{color:var(--good)}.warning{color:var(--warn)}.error{color:var(--bad)}.shell{max-width:1480px;margin:auto;padding:34px 32px 50px;min-width:0}.masthead{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:25px}.brand{display:flex;align-items:center;gap:15px}.brand-mark{width:44px;height:44px;background:var(--action);color:var(--primary-contrast,#fff);border-radius:12px;display:grid;place-items:center;font-weight:800;font-size:22px}.intro{margin-top:8px;max-width:75ch;color:var(--muted)}.connection-state{display:inline-flex;align-items:center;gap:8px;font-size:13px}.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}.connected .dot{background:var(--good)}.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:20px;min-width:0}.connect-panel{padding:19px 22px}.connect-grid{display:grid;grid-template-columns:minmax(200px,1fr) auto;gap:12px;align-items:end}.connect-grid label{display:grid;gap:6px}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.connection-actions{display:flex;gap:8px}.notice{margin-top:12px;color:var(--muted);font-size:12px;max-width:95ch}.scope{margin-top:13px;padding-top:12px;border-top:1px solid var(--line);display:flex;gap:8px 20px;flex-wrap:wrap;font-size:12px;color:var(--muted)}.banner{padding:13px 17px;margin-bottom:16px;border:1px solid var(--line);border-left:3px solid var(--blue);background:var(--surface);border-radius:7px;overflow-wrap:anywhere}.banner.error{border-left-color:var(--bad)}.banner.warning{border-left-color:var(--warn)}.panel-header{padding:19px 22px;display:flex;justify-content:space-between;align-items:center;gap:15px;flex-wrap:wrap}.panel-title p{margin-top:4px;font-size:12px;color:var(--muted)}.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.toolbar input{width:230px}.table-scroll{max-width:100%;overflow-x:auto;border-top:1px solid var(--line);overscroll-behavior-x:contain}table{width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums}table.accounts{min-width:1080px}table.groups{min-width:620px}th{font-size:12px;font-weight:500;color:var(--muted);padding:11px 18px;background:var(--raised);white-space:nowrap}td{padding:15px 18px;border-top:1px solid var(--line);vertical-align:top;font-size:13px}tbody tr:hover{background:var(--raised)}.name{font-weight:650;font-size:14px}.sub{font-size:11px;color:var(--muted);margin-top:4px;max-width:240px;overflow-wrap:anywhere}.badge{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:1px 7px;font-size:11px;white-space:nowrap}.badge.good{border-color:#466956}.badge.warning{border-color:#786349}.badge.error{border-color:#77515e}.empty{padding:36px 22px;text-align:center;color:var(--muted);max-width:100%}.panel-footer{padding:11px 22px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}details summary{cursor:pointer;color:var(--blue);font-size:12px;width:fit-content}details[open] summary{margin-bottom:9px}.quota-details{margin-top:7px;max-width:280px}.window{border-top:1px solid var(--line);padding:7px 0;font-size:12px}.window:first-child{border-top:0}.events{padding:0 22px 16px}.event{border-top:1px solid var(--line);padding:14px 0}.event-head{display:flex;gap:10px 18px;align-items:baseline;flex-wrap:wrap}.event-meta{display:flex;gap:8px 18px;flex-wrap:wrap;margin:6px 0;font-size:12px;color:var(--muted);overflow-wrap:anywhere}.event-reason{font-size:13px;overflow-wrap:anywhere;max-width:100ch;margin-bottom:7px}.candidate-table{min-width:860px}.candidate-table th,.candidate-table td{padding:8px 12px;font-size:12px}.event details .table-scroll{border:1px solid var(--line);border-radius:7px}.page-foot{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12px}dialog{width:min(650px,calc(100% - 28px));max-height:90dvh;overflow:auto;margin:auto;padding:0;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--text)}dialog::backdrop{background:rgba(4,10,19,.75)}.dialog-head{padding:22px 24px 15px;display:flex;justify-content:space-between;align-items:center;gap:10px}.dialog-body{padding:0 24px 22px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.field{display:grid;gap:6px;font-size:13px}.field.full{grid-column:1/-1}.check-label{display:flex;align-items:center;gap:9px}.help{font-size:12px;color:var(--muted)}.dialog-actions{margin-top:22px;display:flex;justify-content:flex-end;gap:10px}.form-error{margin-top:14px;color:var(--bad);font-size:13px;overflow-wrap:anywhere}.masked{-webkit-text-security:disc;font-family:Consolas,monospace;caret-color:var(--blue)}.import-example{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--raised);border:1px solid var(--line);border-radius:7px;padding:12px;font-size:12px;color:var(--muted);margin:12px 0}.import-result{padding:14px 22px;border-top:1px solid var(--line);font-size:13px;overflow-wrap:anywhere}.import-result ul{margin:7px 0;padding-left:20px}fieldset{border:0;padding:0;margin:0;min-width:0}body.dialog-open{overflow:hidden}@media(max-width:780px){.shell{padding:22px 16px 35px}.masthead{align-items:flex-start;gap:14px}.brand-mark{display:none}h1{font-size:24px}.connect-grid{grid-template-columns:1fr}.connection-actions{flex-wrap:wrap}.connect-panel,.panel-header{padding:16px}.toolbar{width:100%}.toolbar input{width:100%}.toolbar button{flex:1}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.events{padding:0 16px 14px}.dialog-head{padding:18px 18px 14px}.dialog-body{padding:0 18px 18px}.table-scroll{width:100%}.event-head .mono{font-size:11px}.connection-state{white-space:nowrap}.intro{font-size:13px}.scope{display:grid;gap:5px}}@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+.scope-details{margin-top:12px}.scope-details .scope{margin-top:8px}.scope-warning{margin-top:8px;max-width:95ch;font-size:12px}.group-explanation{border-top:1px solid var(--line);padding:12px 22px}.account-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,390px),1fr));gap:16px;padding:0 22px 22px}.account-card{border:1px solid var(--line);border-radius:10px;padding:20px;min-width:0;align-self:start}.account-head{margin-bottom:12px}.account-head h3{font-size:16px;overflow-wrap:anywhere}.account-alerts{display:grid;gap:4px;margin-top:7px;font-size:12px;overflow-wrap:anywhere}.quota-row{display:grid;grid-template-columns:48px minmax(0,1fr) 90px;column-gap:12px;row-gap:0;padding:3px 0 7px;align-items:center}.quota-label{font-size:12px}.bar-hit{border:0;background:transparent;padding:0;min-height:32px;width:100%;display:flex;align-items:center;border-radius:4px;text-align:left;font-weight:400;white-space:normal}.bar-hit:hover:not(:disabled){background:transparent}.bar-hit:hover .quota-fill{filter:brightness(1.1)}.quota-track{display:block;width:100%;height:11px;background:color-mix(in srgb,var(--primary-color,#438bea) 16%,var(--surface));border-radius:0 4px 4px 0}.quota-fill{display:block;height:100%;width:var(--amount);background:var(--primary-solid,var(--primary-color,#438bea));border-radius:0 4px 4px 0}.quota-value{text-align:right;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--text);overflow-wrap:anywhere}.quota-value.unknown{font-size:12px;font-weight:400;color:var(--muted)}.quota-unknown{font-size:12px;color:var(--muted)}.quota-reset{grid-column:2 / 4;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.quota-issue{grid-column:2 / 4;font-size:11px;overflow-wrap:anywhere}.account-card.stale .quota-track{opacity:.45}.subscription{display:flex;justify-content:space-between;align-items:baseline;gap:8px 16px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:11px;margin-top:10px;font-size:12px;color:var(--muted)}.subscription-date{color:var(--text);font-variant-numeric:tabular-nums}.renewal-note{width:100%;font-size:11px}.group-details{margin-top:14px;padding-top:11px;border-top:1px solid var(--line)}.detail-meta{display:flex;gap:5px 18px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:12px}.quota-table{min-width:620px}.quota-table th,.quota-table td{padding:8px 10px;font-size:12px}.quota-table caption{text-align:left;color:var(--muted);font-size:11px;padding:8px 0}.key-management{margin-top:15px}.key-entry{padding:12px 0;border-top:1px solid var(--line);overflow-wrap:anywhere}.key-meta{font-size:11px;color:var(--muted);margin:4px 0}.key-entry .row{margin-top:9px}.quota-tooltip{position:fixed;z-index:100;max-width:min(290px,calc(100vw - 24px));padding:12px 14px;background:var(--raised);color:var(--muted);border:1px solid var(--line);border-radius:8px;pointer-events:none;font-size:12px;line-height:1.7;overflow-wrap:anywhere}.quota-tooltip strong{display:block;color:var(--text);font-size:16px;margin-bottom:4px}.quota-tooltip .tooltip-label{color:var(--text);margin-bottom:5px}@media(max-width:780px){.account-list{padding:0 16px 16px;gap:12px}.account-card{padding:16px}.quota-row{grid-template-columns:39px minmax(0,1fr) 78px;column-gap:9px}.quota-reset{font-size:10px}.group-explanation{padding:12px 16px}.quota-value.unknown{font-size:11px}}@media(forced-colors:active){.quota-track{outline:1px solid CanvasText;background:Canvas!important}.quota-fill{background:Highlight!important;forced-color-adjust:none}}@media print{.quota-fill{background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,var(--surface) 3px,var(--surface) 4px);print-color-adjust:exact}}
 </style>
 </head>
 <body>
@@ -22,7 +23,7 @@
     <div class="connect-grid"><label for="managementKey">CPAMP 管理 Key<input id="managementKey" type="password" autocomplete="off" spellcheck="false" placeholder="输入当前 CPAMP 的管理 Key" required></label><div class="connection-actions"><button id="connectButton" class="primary" type="submit">连接管理 API</button><button id="disconnectButton" type="button" disabled>断开并清空</button><button id="pollButton" type="button" disabled>暂停轮询</button><button id="reloadButton" type="button" disabled>立即同步</button></div></div>
   </form>
   <p class="notice">仅访问当前 CPAMP 的同源管理 API。管理 Key 不写入浏览器存储；连接后输入框立即清空。断开会清除本页账号、事件和所有凭据。</p>
-  <div class="scope" id="scopeInfo"><span>作用范围：连接后读取</span><span>每 5 秒同步账号与事件；真实额度由后端缓存返回</span></div>
+  <details class="scope-details"><summary>运行作用范围与同步说明</summary><div class="scope" id="scopeInfo"><span>作用范围：连接后读取</span><span>每 5 秒同步账号与事件；真实额度由后端缓存返回</span></div><p id="scopeDescription" class="notice"></p></details>
 </section>
 <div id="message" class="banner" role="status" aria-live="polite" hidden></div>
 <div id="syncError" class="banner error" role="alert" hidden></div>
@@ -30,15 +31,15 @@
 <div id="quotaWarning" class="banner warning" role="status" hidden></div>
 <section class="panel" aria-labelledby="accountsTitle">
   <div class="panel-header"><div class="panel-title"><h2 id="accountsTitle">账号与额度</h2><p id="accountSummary">连接后查看账号。编辑时 Key 留空会保留原值，API 不返回明文。</p></div><fieldset id="accountToolbar" disabled><div class="toolbar"><input id="accountFilter" aria-label="筛选账号" placeholder="搜索名称、分组或账号 ID"><button id="refreshAllButton" type="button">刷新真实额度</button><button id="importButton" type="button">批量导入</button><button id="addButton" type="button" class="primary">新增账号</button></div></fieldset></div>
-  <div class="table-scroll" tabindex="0" aria-label="账号表格，可横向滚动"><table class="accounts"><thead><tr><th scope="col">账号 / Key 指纹</th><th scope="col">真实账号分组</th><th scope="col">剩余 credits</th><th scope="col">窗口余量 / 额度详情</th><th scope="col">在途 / 组共享 cap</th><th scope="col">状态 / 额度更新时间</th><th scope="col">操作</th></tr></thead><tbody id="accountRows"></tbody></table></div>
+  <div id="accountRows" class="account-list" aria-label="真实账号剩余配额"></div>
   <p id="accountEmpty" class="empty">尚未连接。输入管理 Key 后开始。</p>
   <div id="importResult" class="import-result" role="status" aria-live="polite" hidden></div>
-  <div class="panel-footer">同一个真实账号的多个 Key 必须使用相同 group_id，共享一个并发 cap。额度是后端真实快照，不将同组多 Key 的余额重复相加。</div>
+  <details class="group-explanation"><summary>共享分组说明</summary><p class="notice">同一个真实账号的多个 Key 必须使用相同 group_id，共享一个并发 cap。额度是后端真实快照，不将同组多 Key 的余额重复相加。每组优先显示最新有效快照；其他 Key 的差异与错误仍会提醒。横条表示剩余比例，月额度仅供显示，不参与后端窗口评分。所有时间为北京时间（Asia/Shanghai）。</p></details>
 </section>
-<section class="panel" aria-labelledby="groupsTitle">
-  <div class="panel-header"><div class="panel-title"><h2 id="groupsTitle">共享分组</h2><p>后端在每个 Key 上返回相同的组共享在途数；同组只计一次，不累加。cap 属于整组。</p></div></div>
+<details class="panel group-explanation" aria-labelledby="groupsTitle"><summary id="groupsTitle">共享分组配置检查</summary>
+  <p class="notice">后端在每个 Key 上返回相同的组共享在途数；同组只计一次，不累加。cap 属于整组。</p>
   <div class="table-scroll" tabindex="0" aria-label="共享分组表格，可横向滚动"><table class="groups"><thead><tr><th scope="col">group_id</th><th scope="col">Key 数 / 启用数</th><th scope="col">组在途</th><th scope="col">共享并发 cap</th><th scope="col">配置检查</th></tr></thead><tbody id="groupRows"></tbody></table></div><p id="groupEmpty" class="empty">连接后显示真实账号分组。</p>
-</section>
+</details>
 <section class="panel" aria-labelledby="eventsTitle">
   <div class="panel-header"><div class="panel-title"><h2 id="eventsTitle">真实请求</h2><p id="eventSummary">每个请求一行，显示实际账号、结果与选号原因，不展示请求正文。</p></div><button id="clearEventsButton" type="button" disabled>清空本页请求</button></div><div id="eventRows" class="events"></div><p id="eventEmpty" class="empty">暂无真实账号池请求。额度刷新和后台通知不在这里显示。</p><div class="panel-footer">本页最多保留 500 个请求，每个请求最多 50 条技术记录；后端保留最近 500 条请求过程记录，较早过程可能不完整。清空不删除后端记录，也不重置游标。</div>
 </section>
@@ -63,6 +64,7 @@
   {"name":"账号 A · Key 2","group_id":"real-account-a","api_key":"替换为 Key 2","max_concurrency":4}
 ]</pre><label class="field">账号 JSON（输入遮蔽，不保存）<textarea id="importJSON" class="masked" rows="8" autocomplete="off" spellcheck="false" required aria-describedby="importSecretHint"></textarea></label><p id="importSecretHint" class="help">发送时立即清空输入。遮蔽不受浏览器支持时内容可能可见；请勿在共享屏幕下粘贴。后端可能部分成功，请核对每一条导入结果，不要盲目重复整批。</p><p id="importFormError" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button id="cancelImportButton" type="button">取消</button><button id="submitImportButton" type="submit" class="primary">导入账号</button></div></form>
 </dialog>
+<div id="quotaTooltip" class="quota-tooltip" role="tooltip" hidden></div>
 <script>
 (() => {
   'use strict';
@@ -88,6 +90,7 @@
   let cursor = '0';
   let status = null;
   const controllers = new Set();
+  const expandedGroups = new Set();
   const text = (value) => String(value == null ? '—' : value).split(managementKey || '\u0000').join(managementKey ? '[已隐藏]' : '\u0000');
   function el(tag, value, className) {
     const node = document.createElement(tag);
@@ -104,14 +107,22 @@
   function number(value) {
     return typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString('zh-CN', {maximumFractionDigits: 4}) : '—';
   }
+  function instant(value) {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value)) return null;
+    const date = new Date(value), [year, month, day] = value.slice(0, 10).split('-').map(Number);
+    // Date accepts calendar rollovers and locale-shaped strings; API times must
+    // be RFC3339 instants. Go's zero time is unknown, never a real reset date.
+    if (!Number.isFinite(date.getTime()) || year < 2000 || month < 1 || month > 12 || day < 1 || day > new Date(Date.UTC(year, month, 0)).getUTCDate()) return null;
+    return date;
+  }
   function timestamp(value) {
-    const date = new Date(value);
-    return !value || !Number.isFinite(date.getTime()) || date.getFullYear() < 2000 ? '尚无快照' : date.toLocaleString('zh-CN', {hour12: false});
+    const date = instant(value);
+    return date ? date.toLocaleString('zh-CN', {timeZone: 'Asia/Shanghai', hour12: false}) + ' 北京时间' : '待确认';
   }
   function quotaStale(quota) {
-    const at = new Date(quota && quota.updated_at).getTime();
+    const date = instant(quota && quota.updated_at), at = date && date.getTime();
     const maxAge = status && status.quota_max_age_seconds;
-    return !Number.isFinite(at) || at <= 0 || new Date(at).getFullYear() < 2000 || !Number.isFinite(maxAge) || maxAge <= 0 || Date.now() - at > maxAge * 1000;
+    return at === null || at > Date.now() || !Number.isFinite(maxAge) || maxAge <= 0 || Date.now() - at > maxAge * 1000;
   }
   function alive(version) { return connected && generation === version; }
   function setControls() {
@@ -169,10 +180,11 @@
   function renderStatus() {
     const info = $('scopeInfo');
     info.replaceChildren();
-    if (!status) { info.append(el('span', '作用范围：尚未读取')); return; }
+    if (!status) { info.append(el('span', '作用范围：尚未读取')); $('scopeDescription').textContent = ''; return; }
     info.append(el('span', '插件版本：' + text(status.plugin_version)), el('span', '作用范围：' + (status.scope === 'single_process' ? '单进程' : text(status.scope))), el('span', '额度快照有效期：' + number(status.quota_max_age_seconds) + ' 秒'), el('span', '默认共享 cap：' + number(status.default_limit)));
     if (status.home_supported === false) info.append(el('span', 'Home 聚合：未支持'));
-    show('scopeWarning', status.scope === 'single_process' ? '单进程范围：在途计数和调度事件仅属于当前 CPA 进程，不代表其他实例；多实例运行时不能视为全局共享并发上限。' : '当前作用范围不是预期的 single_process，请核对插件版本与返回合同。', 'warning');
+    $('scopeDescription').textContent = '单进程范围：在途计数和调度事件仅属于当前 CPA 进程，不代表其他实例；多实例运行时不能视为全局共享并发上限。每 5 秒同步账号与事件；真实额度由后端缓存返回。';
+    show('scopeWarning', status.scope === 'single_process' ? '' : '当前作用范围不是预期的 single_process，请核对插件版本与返回合同。', 'warning');
   }
   function groups() {
     const result = new Map();
@@ -209,39 +221,167 @@
     button.type = 'button'; button.dataset.accountAction = 'true'; button.disabled = mutating || syncing || !connected;
     button.addEventListener('click', callback); return button;
   }
+  const WINDOW_ROWS = [['five_hour', '5 小时'], ['weekly', '周'], ['month', '月']];
+  const finite = value => typeof value === 'number' && Number.isFinite(value);
+  const rawNumber = value => finite(value) ? String(value) : '—';
+  let tooltipTarget = null;
+  function hideQuotaTooltip() {
+    $('quotaTooltip').hidden = true;
+    $('quotaTooltip').replaceChildren();
+    if (tooltipTarget) tooltipTarget.removeAttribute('aria-describedby');
+    tooltipTarget = null;
+  }
+  function quotaRows(q) {
+    return WINDOW_ROWS.map(([name, label]) => {
+      const matches = (Array.isArray(q.windows) ? q.windows : []).filter(w => w && w.name === name);
+      const value = name === 'month' ? q.month : matches[0];
+      return {name, label, value, duplicate: name !== 'month' && matches.length > 1};
+    });
+  }
+  function windowReading(row, q) {
+    const w = row.value, at = instant(q.updated_at);
+    let issue = '';
+    if (q.error) issue = '额度获取错误，不能计算比例';
+    else if (!at) issue = '快照时间未知或无效，不能计算比例';
+    else if (at.getTime() > Date.now()) issue = '快照时间在未来，不能确认比例';
+    else if (row.duplicate) issue = '窗口数据重复，不能确认比例';
+    else if (!w) issue = row.name === 'month' ? '月总额待确认' : '暂无窗口数据';
+    else if (row.name === 'month' && w.source !== 'plan_allowance') issue = '月总额来源待确认';
+    else if (!finite(w.used) || !finite(w.cap) || !finite(w.remaining)) issue = '额度数据缺失或无效';
+    else if (w.cap <= 0) issue = '总额未知或无有效分母';
+    else if (w.used < 0) issue = '额度数值异常';
+    const overcap = w && finite(w.used) && finite(w.cap) && finite(w.remaining) && (w.used > w.cap || w.remaining > w.cap || w.remaining < 0);
+    if (!issue && !overcap && Math.abs(w.remaining - (w.cap - w.used)) > Math.max(1, w.cap) * 0.000001) issue = '已用与剩余数据不一致';
+    const ratio = !issue ? w.remaining / w.cap : null;
+    if (ratio !== null && (!Number.isFinite(ratio) || !Number.isFinite(ratio * 100))) issue = '额度比例无效';
+    return {ratio: issue ? null : ratio, issue, warning: !issue && overcap ? '额度超出总额，图形已截断；原始数值见详情' : ''};
+  }
+  function validSnapshot(account) {
+    const q = account.quota || {}, at = instant(q.updated_at);
+    return !q.error && finite(q.remaining_credits) && q.remaining_credits >= 0 && finite(q.headroom) && q.headroom >= 0 && q.headroom <= 1 && at !== null && at.getTime() <= Date.now() && quotaRows(q).slice(0, 2).every(row => windowReading(row, q).ratio !== null);
+  }
+  function latestSnapshot(group) {
+    const time = a => { const at = instant(a.quota && a.quota.updated_at); return at ? at.getTime() : 0; };
+    const byTime = [...group.accounts].sort((a, b) => time(b) - time(a));
+    return byTime.find(validSnapshot) || byTime[0];
+  }
+  function groupName(group) {
+    const names = group.accounts.map(a => String(a.name || '').trim()).filter(Boolean);
+    const base = name => name.replace(/\s*[·|/]\s*Key\s*\d+\s*$/i, '').trim();
+    if (names.length && names.every(name => base(name) === base(names[0])) && base(names[0])) return base(names[0]);
+    return names[0] || '未命名账号';
+  }
+  function snapshotSignature(q) {
+    return JSON.stringify([q.remaining_credits, q.headroom, quotaRows(q).map(r => r.value ? [r.value.used, r.value.cap, r.value.remaining, r.value.reset_at, r.value.source] : null), q.monthly_credits, q.subscription_period_end, q.subscription_status]);
+  }
+  function resetLabel(row, stale) {
+    return (stale ? '历史记录 · ' : '') + (timestamp(row.value && row.value.reset_at) === '待确认' ? '重置时间待确认' : '重置：' + timestamp(row.value.reset_at));
+  }
+  function sourceLabel(row) { return row.name === 'month' ? (row.value && row.value.source === 'plan_allowance' ? '按套餐总额推导（仅显示，不参与窗口评分）' : '月总额来源待确认') : (row.value ? '上游真实窗口' : '上游窗口尚未获取'); }
+  function showQuotaTooltip(button, name, row, q, stale) {
+    hideQuotaTooltip();
+    const tip = $('quotaTooltip'), w = row.value || {}, reading = windowReading(row, q);
+    tip.replaceChildren();
+    tip.append(el('strong', reading.ratio === null ? '比例待确认' : '剩余 ' + number(reading.ratio * 100) + '%'), el('div', name + ' · ' + row.label + '配额', 'tooltip-label'), el('div', '已用：' + rawNumber(w.used) + ' credits'), el('div', '总额：' + rawNumber(w.cap) + ' credits'), el('div', '剩余：' + rawNumber(row.name === 'month' && !row.value ? q.monthly_credits : w.remaining) + ' credits'), el('div', resetLabel(row, stale)), el('div', sourceLabel(row)));
+    if (reading.issue || reading.warning) tip.append(el('div', reading.issue || reading.warning, 'warning'));
+    if (stale) tip.append(el('div', '历史快照已过期，不能据此判断当前可用量', 'warning'));
+    tip.hidden = false; tooltipTarget = button; button.setAttribute('aria-describedby', 'quotaTooltip');
+    const box = tip.getBoundingClientRect(), rect = button.getBoundingClientRect();
+    tip.style.left = Math.max(12, Math.min(rect.left, window.innerWidth - box.width - 12)) + 'px';
+    tip.style.top = (rect.bottom + box.height + 10 > window.innerHeight - 12 ? Math.max(12, rect.top - box.height - 9) : rect.bottom + 9) + 'px';
+  }
+  function renderQuotaRow(name, row, q, stale) {
+    const node = el('div', undefined, 'quota-row'); node.dataset.window = row.name;
+    const reading = windowReading(row, q), hit = el('button', undefined, 'bar-hit'); hit.type = 'button';
+    hit.setAttribute('aria-label', name + '，' + row.label + '配额，' + (reading.ratio === null ? reading.issue : '剩余 ' + number(reading.ratio * 100) + '%') + (stale ? '，历史过期快照' : ''));
+    if (reading.ratio !== null) {
+      const track = el('span', undefined, 'quota-track'), fill = el('span', undefined, 'quota-fill');
+      fill.style.setProperty('--amount', Math.max(0, Math.min(100, reading.ratio * 100)) + '%');
+      track.setAttribute('aria-hidden', 'true'); track.append(fill); hit.append(track);
+    } else hit.append(el('span', '比例待确认', 'quota-unknown'));
+    hit.addEventListener('pointerenter', () => showQuotaTooltip(hit, name, row, q, stale));
+    hit.addEventListener('pointerleave', () => { if (document.activeElement !== hit) hideQuotaTooltip(); });
+    hit.addEventListener('focus', () => showQuotaTooltip(hit, name, row, q, stale));
+    hit.addEventListener('blur', hideQuotaTooltip);
+    hit.addEventListener('click', () => showQuotaTooltip(hit, name, row, q, stale));
+    node.append(el('span', row.label, 'quota-label'), hit, el('span', reading.ratio === null ? '待确认' : number(reading.ratio * 100) + '%', 'quota-value' + (reading.ratio === null ? ' unknown' : '')), el('div', resetLabel(row, stale), 'quota-reset'));
+    if (reading.issue || reading.warning) node.append(el('div', reading.issue || reading.warning, 'quota-issue warning'));
+    if (row.name === 'month' && !row.value && !q.error && finite(q.monthly_credits)) node.append(el('div', '月剩余 ' + number(q.monthly_credits) + ' credits（总额未知）', 'quota-issue muted'));
+    return node;
+  }
+  function quotaTable(q, stale, caption) {
+    const scroll = el('div', undefined, 'table-scroll'); scroll.tabIndex = 0; scroll.setAttribute('aria-label', '额度数据表，可横向滚动');
+    const table = el('table', undefined, 'quota-table'), head = el('tr'), thead = el('thead'), body = el('tbody');
+    table.append(el('caption', caption));
+    for (const label of ['周期', '已用 credits', '总额 credits', '剩余 credits', '时间', '来源 / 异常']) { const th = el('th', label); th.scope = 'col'; head.append(th); }
+    thead.append(head);
+    for (const row of quotaRows(q)) {
+      const w = row.value || {}, reading = windowReading(row, q), tr = el('tr');
+      tr.append(el('td', row.label), el('td', rawNumber(w.used)), el('td', rawNumber(w.cap)), el('td', rawNumber(row.name === 'month' && !row.value ? q.monthly_credits : w.remaining)), el('td', resetLabel(row, stale)), el('td', sourceLabel(row) + (reading.issue || reading.warning ? '；' + (reading.issue || reading.warning) : ''), 'wrap')); body.append(tr);
+    }
+    table.append(thead, body); scroll.append(table); return scroll;
+  }
+  function groupDetails(group, selected, open) {
+    const details = el('details', undefined, 'group-details'); details.dataset.group = text(group.id); details.open = open;
+    details.append(el('summary', '详情与管理 · 额度数据表'));
+    const q = selected.quota || {}, meta = el('div', undefined, 'detail-meta');
+    meta.append(el('span', 'group_id ' + text(group.id), 'mono wrap'), el('span', '组共享在途 ' + number(group.inflight) + ' / ' + (group.limits.size === 1 ? number(selected.max_concurrency) : 'cap 不一致')), el('span', '同组只计一次；API 未提供单 Key 在途'), el('span', '共享并发 cap ' + (group.limits.size === 1 ? number(selected.max_concurrency) : '不一致')), el('span', '同账号 ' + group.accounts.length + ' 个 Key'), el('span', '显示快照：' + text(selected.name) + ' · ' + timestamp(q.updated_at)), el('span', '剩余 credits ' + number(q.remaining_credits) + ' · headroom ' + number(q.headroom)));
+    details.append(meta, quotaTable(q, quotaStale(q), '主层使用此快照，不累加同组余额；剩余比例 = 剩余 / 总额，图形范围 0–100%。'));
+    const keys = el('div', undefined, 'key-management'); keys.append(el('h3', '逐 Key 管理'));
+    for (const account of group.accounts) {
+      const aq = account.quota || {}, entry = el('section', undefined, 'key-entry'); entry.dataset.account = text(account.id);
+      entry.append(el('div', account.name, 'name'), el('div', 'Key 指纹 ' + text(account.key_fingerprint) + ' · ID ' + text(account.id) + ' · auth_id ' + text(account.auth_id), 'key-meta mono'), el('div', (account.enabled ? '启用' : '已禁用') + ' · ' + text(account.status || '状态未知') + ' · 快照 ' + timestamp(aq.updated_at), 'key-meta'), el('div', '套餐：' + text(aq.plan) + ' · 邮箱：' + text(aq.email) + ' · 身份：' + text(aq.identity), 'key-meta'), el('div', '剩余 credits ' + number(aq.remaining_credits) + ' · headroom ' + number(aq.headroom), 'key-meta'), el('div', '月剩余 credits ' + number(aq.monthly_credits) + ' · 订阅本期结束 ' + timestamp(aq.subscription_period_end) + ' · 订阅状态 ' + text(aq.subscription_status), 'key-meta'));
+      if (aq.error) entry.append(el('div', '额度异常：' + text(aq.error), 'error tiny'));
+      if (quotaStale(aq)) entry.append(el('div', '额度已过期或尚未获取，不能据此判断当前可用量', 'warning tiny'));
+      entry.append(quotaTable(aq, quotaStale(aq), '此 Key 的原始额度快照'));
+      const extra = (Array.isArray(aq.windows) ? aq.windows : []).filter(w => w && (!WINDOW_ROWS.some(([name]) => name === w.name) || aq.windows.filter(other => other && other.name === w.name).length > 1));
+      for (const w of extra) entry.append(el('div', '原始窗口 ' + text(w.name) + ' · 已用 ' + rawNumber(w.used) + ' / cap ' + rawNumber(w.cap) + ' · 剩余 ' + rawNumber(w.remaining) + ' · 重置 ' + timestamp(w.reset_at), 'key-meta'));
+      const buttons = el('div', undefined, 'row'); buttons.append(actionButton('编辑', () => openAccount(account)), actionButton('刷新', () => refreshQuota(account.id)), actionButton('删除', () => deleteAccount(account), true)); entry.append(buttons); keys.append(entry);
+    }
+    details.append(keys); return details;
+  }
   function renderAccounts() {
-    const rows = $('accountRows'); rows.replaceChildren();
+    hideQuotaTooltip();
+    const rows = $('accountRows');
+    if (!connected) expandedGroups.clear();
+    else for (const d of rows.querySelectorAll('.group-details')) {
+      if (d.open) expandedGroups.add(d.dataset.group); else expandedGroups.delete(d.dataset.group);
+    }
+    rows.replaceChildren();
     const groupMap = groups(); renderGroups(groupMap);
+    const currentGroups = new Set([...groupMap.values()].map(g => text(g.id)));
+    for (const id of expandedGroups) if (!currentGroups.has(id)) expandedGroups.delete(id);
     const filter = $('accountFilter').value.trim().toLocaleLowerCase();
-    const filtered = accounts.filter(a => [a.name, a.group_id, a.id, a.auth_id].some(v => String(v || '').toLocaleLowerCase().includes(filter)));
-    for (const account of filtered) {
-      const q = account.quota || {};
-      const stale = quotaStale(q);
-      const row = el('tr');
-      const name = el('td'); name.append(el('div', account.name, 'name wrap'), el('div', 'Key 指纹 ' + text(account.key_fingerprint), 'sub mono'), el('div', 'ID ' + text(account.id), 'sub mono'), el('div', 'auth_id ' + text(account.auth_id), 'sub mono'));
-      const group = el('td', account.group_id, 'mono wrap');
-      const credits = el('td'); credits.append(el('div', number(q.remaining_credits), 'name'), el('div', stale ? '缓存过期 / 未获取' : '真实快照', 'sub' + (stale ? ' warning' : '')));
-      const quota = el('td'); quota.append(el('div', 'headroom ' + number(q.headroom), 'mono'));
-      const details = el('details', undefined, 'quota-details'); details.append(el('summary', '查看窗口与身份'));
-      if (q.email) details.append(el('div', '邮箱：' + text(q.email), 'sub'));
-      if (q.plan) details.append(el('div', '套餐：' + text(q.plan), 'sub'));
-      if (q.identity) details.append(el('div', '身份：' + text(q.identity), 'sub'));
-      if (!Array.isArray(q.windows) || !q.windows.length) details.append(el('div', '暂无窗口明细', 'sub'));
-      for (const window of Array.isArray(q.windows) ? q.windows : []) {
-        const item = el('div', undefined, 'window'); item.append(el('div', window.name, 'wrap'), el('div', '已用 ' + number(window.used) + ' / cap ' + number(window.cap)), el('div', '剩余 ' + number(window.remaining)), el('div', '重置：' + timestamp(window.reset_at), 'muted')); details.append(item);
+    const filtered = [...groupMap.values()].filter(g => g.accounts.some(a => [a.name, a.group_id, a.id, a.auth_id, a.key_fingerprint, a.quota && a.quota.email, a.quota && a.quota.identity, a.quota && a.quota.plan].some(v => String(v || '').toLocaleLowerCase().includes(filter))));
+    for (const group of filtered) {
+      const selected = latestSnapshot(group), q = selected.quota || {}, stale = quotaStale(q), name = groupName(group);
+      const card = el('article', undefined, 'account-card' + (stale ? ' stale' : '')); card.dataset.group = text(group.id);
+      const head = el('div', undefined, 'account-head'), alerts = el('div', undefined, 'account-alerts'); head.append(el('h3', name));
+      if (!validSnapshot(selected)) alerts.append(el('div', '额度未知或数据无效，请刷新核对', 'warning'));
+      if (stale) alerts.append(el('div', '额度已过期或尚未获取，当前为历史快照', 'warning'));
+      const signatures = new Set(group.accounts.filter(a => !a.quota || !a.quota.error).map(a => snapshotSignature(a.quota || {})));
+      if (signatures.size > 1) alerts.append(el('div', '同组额度快照有差异，优先显示最新有效值；逐 Key 记录见详情', 'warning'));
+      if (group.limits.size !== 1) alerts.append(el('div', '警告：同组共享并发 cap 不一致', 'warning'));
+      if (group.inflightValues.size !== 1 || group.inflightValues.has(null)) alerts.append(el('div', '警告：组共享在途快照不一致或缺失', 'warning'));
+      const staleKeys = group.accounts.filter(a => a !== selected && quotaStale(a.quota || {})).length;
+      if (staleKeys) alerts.append(el('div', staleKeys + ' 个其他凭据的快照过期或尚未获取', 'warning'));
+      const invalidKeys = group.accounts.filter(a => a !== selected && !validSnapshot(a) && !(a.quota && a.quota.error)).length;
+      if (invalidKeys) alerts.append(el('div', invalidKeys + ' 个其他凭据的额度未知或数据无效，请在详情核对', 'warning'));
+      const disabled = group.accounts.filter(a => !a.enabled).length;
+      if (disabled) alerts.append(el('div', disabled === group.accounts.length ? '整组已禁用' : disabled + ' 个凭据已禁用', 'warning'));
+      for (const account of group.accounts) {
+        if (account.quota && account.quota.error) alerts.append(el('div', '额度异常（' + text(account.name) + '）：' + text(account.quota.error), 'error'));
+        if (!account.status || !['eligible', 'disabled', 'quota_stale', 'quota_unavailable'].includes(account.status)) alerts.append(el('div', text(account.name) + '：' + (account.status ? reasonText(account.status) : '状态未知'), 'warning'));
       }
-      quota.append(details);
-      const occupancy = el('td'); const g = groupMap.get(account.group_id); occupancy.append(el('div', '组共享在途 ' + number(g.inflight) + ' / ' + (g.limits.size === 1 ? number(account.max_concurrency) : 'cap 不一致')), el('div', '同组只计一次；API 未提供单 Key 在途', 'sub'));
-      if (g.inflightValues.size !== 1 || g.inflightValues.has(null)) occupancy.append(el('div', '组内快照不一致或缺失，显示已知最大值', 'sub warning'));
-      const state = el('td'); state.append(el('span', account.enabled ? '启用' : '已禁用', 'badge ' + (account.enabled ? 'good' : '')), el('div', account.status || '状态未知', 'sub'), el('div', timestamp(q.updated_at), 'sub'));
-      if (q.error) state.append(el('div', '额度异常：' + text(q.error), 'sub error'));
-      if (stale) state.append(el('div', '额度已过期，不能据此判断当前可用量', 'sub warning'));
-      const actions = el('td'); const buttons = el('div', undefined, 'row'); buttons.append(actionButton('编辑', () => openAccount(account)), actionButton('刷新', () => refreshQuota(account.id)), actionButton('删除', () => deleteAccount(account), true)); actions.append(buttons);
-      row.append(name, group, credits, quota, occupancy, state, actions); rows.append(row);
+      head.append(alerts); card.append(head);
+      for (const row of quotaRows(q)) card.append(renderQuotaRow(name, row, q, stale));
+      const subscription = el('div', undefined, 'subscription');
+      subscription.append(el('span', '订阅本期结束'), el('span', timestamp(q.subscription_period_end), 'subscription-date'), el('span', (q.subscription_status ? '订阅状态：' + text(q.subscription_status) + '；' : '') + '续订状态待确认；本期结束不代表实际服务失效', 'renewal-note'));
+      card.append(subscription, groupDetails(group, selected, expandedGroups.has(text(group.id)))); rows.append(card);
     }
     $('accountEmpty').hidden = filtered.length > 0;
-    $('accountEmpty').textContent = !connected ? '尚未连接。输入管理 Key 后开始。' : accounts.length ? '没有匹配的账号。试试其他名称或分组。' : '账号池为空。新增一个账号或批量导入真实账号 Key。';
-    $('accountSummary').textContent = connected ? accounts.length + ' 个 Key，' + groupMap.size + ' 个真实账号分组；当前显示 ' + filtered.length + ' 个 Key。' : '连接后查看账号。编辑时 Key 留空会保留原值，API 不返回明文。';
+    $('accountEmpty').textContent = !connected ? '尚未连接。输入管理 Key 后开始。' : accounts.length ? '没有匹配的账号。可搜索名称、指纹、分组或账号 ID。' : '账号池为空。新增一个账号或批量导入真实账号 Key。';
+    $('accountSummary').textContent = connected ? accounts.length + ' 个 Key，' + groupMap.size + ' 个真实账号分组；当前显示 ' + filtered.length + ' 个真实账号。剩余比例与时间（北京时间）。' : '连接后查看账号。编辑时 Key 留空会保留原值，API 不返回明文。';
     const staleCount = accounts.filter(a => quotaStale(a.quota || {})).length;
     const errorCount = accounts.filter(a => a.quota && a.quota.error).length;
     show('quotaWarning', connected && (staleCount || errorCount) ? '额度提醒：' + staleCount + ' 个 Key 的快照过期或尚未获取，' + errorCount + ' 个 Key 有额度获取错误。可点击“刷新真实额度”；显示的是缓存快照，不是客户端估算。' : '', 'warning');
@@ -503,6 +643,9 @@
       }, 'importFormError');
     } finally { for (const input of sanitized) input.api_key = ''; }
   });
+  window.addEventListener('keydown', event => { if (event.key === 'Escape') hideQuotaTooltip(); });
+  window.addEventListener('resize', hideQuotaTooltip);
+  window.addEventListener('scroll', hideQuotaTooltip, {passive: true});
   renderAccounts(); renderEvents(); setControls();
 })();
 </script>

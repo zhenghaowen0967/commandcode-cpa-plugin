@@ -245,6 +245,8 @@ func parsePoolCredits(raw []byte) (pool.Quota, error) {
 	if !finiteNonnegative(quota.RemainingCredits) {
 		return pool.Quota{}, errPoolQuotaInvalid
 	}
+	monthly := *credits.Credits.Monthly
+	quota.MonthlyCredits = &monthly
 	if credits.WindowLimits == nil {
 		return quota, nil
 	}
@@ -358,9 +360,23 @@ func fetchPoolQuota(ctx context.Context, client *http.Client, base string, timeo
 	if raw, err := get(accountSubscriptionPath); err == nil {
 		var sub accountSubscription
 		if json.Unmarshal(raw, &sub) == nil && sub.Success {
-			quota.Plan, _ = planFor(sub.Data.PlanID) // Display only, not routing.
+			var allowance float64
+			quota.Plan, allowance = planFor(sub.Data.PlanID) // Display only, not routing.
 			if quota.Plan == "" {
 				quota.Plan = strings.TrimSpace(sub.Data.PlanID)
+			}
+			if allowance > 0 && quota.MonthlyCredits != nil {
+				// The denominator is a static plan allowance, not an upstream total.
+				// Purchased/free credits belong only in RemainingCredits.
+				remaining := *quota.MonthlyCredits
+				cap := math.Max(allowance, remaining)
+				quota.Month = &pool.Window{Name: "month", Source: "plan_allowance", Used: math.Max(0, cap-remaining), Cap: cap, Remaining: remaining}
+			}
+			quota.SubscriptionStatus = strings.TrimSpace(sub.Data.Status)
+			// A subscription period end is not evidence of a monthly reset or
+			// permanent expiry. Reuse the legacy date normalization only.
+			if periodEnd, err := time.Parse(time.RFC3339, periodEndRFC3339(sub.Data.CurrentPeriodEnd)); err == nil {
+				quota.SubscriptionPeriodEnd = &periodEnd
 			}
 		}
 	}

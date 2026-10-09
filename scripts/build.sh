@@ -46,7 +46,7 @@ esac
 if [[ $plugin_role == view && $plugin_id != commandcode-pool ]]; then
   fail 'PLUGIN_ROLE=view requires PLUGIN_ID=commandcode-pool'
 fi
-version_tag=0.1.5-local
+version_tag=0.1.6-local
 artifact_base="$plugin_id"
 if [[ $plugin_role == view ]]; then
   version_tag=0.1.1-compatview
@@ -73,7 +73,7 @@ done
 mkdir -p -- "$out"
 printf '%s\n' "$root" > "$marker"
 # Go -C 固定模块身份，不依赖调用方的当前目录。
-"$go_bin" -C "$root" build -buildmode=c-shared -trimpath \
+"$go_bin" -C "$root" build -buildvcs=false -buildmode=c-shared -trimpath \
   -ldflags "-X commandcode-cpa-plugin/internal/plugin.pluginName=$plugin_id -X commandcode-cpa-plugin/internal/plugin.pluginRole=$plugin_role" \
   -o "$out/$artifact_base.so" .
 for name in LICENSE NOTICE.md THIRD_PARTY_NOTICES.md UNIFIED_SCHEDULER.md README.md VALIDATION.md config.example.yaml; do

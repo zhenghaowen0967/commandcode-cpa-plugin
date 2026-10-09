@@ -37,6 +37,7 @@ type Window struct {
 	Cap       float64   `json:"cap"`
 	Remaining float64   `json:"remaining"`
 	ResetAt   time.Time `json:"reset_at,omitempty"`
+	Source    string    `json:"source,omitempty"`
 }
 
 type Quota struct {
@@ -48,6 +49,11 @@ type Quota struct {
 	Email            string    `json:"email,omitempty"`
 	Plan             string    `json:"plan,omitempty"`
 	Identity         string    `json:"identity,omitempty"`
+	// Display-only metadata; Month is not a rate-limit window or routing input.
+	Month                 *Window    `json:"month,omitempty"`
+	MonthlyCredits        *float64   `json:"monthly_credits,omitempty"`
+	SubscriptionPeriodEnd *time.Time `json:"subscription_period_end,omitempty"`
+	SubscriptionStatus    string     `json:"subscription_status,omitempty"`
 }
 
 type AccountView struct {

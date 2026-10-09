@@ -118,7 +118,7 @@ func TestPoolPageManagementBehavior(t *testing.T) {
 	}
 }
 
-const poolPageBehaviorHarness = `
+const poolPageDOMHarness = `
 'use strict';
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
@@ -128,15 +128,18 @@ class Element {
     this.tagName = tag; this.children = []; this.listeners = {}; this.dataset = {};
     this.value = ''; this.checked = true; this.hidden = false; this.disabled = false; this.open = false;
     this._text = ''; this.className = ''; this.attributes = {};
+    this.style = {setProperty(name, value) { this[name] = value; }, getPropertyValue(name) { return this[name] || ''; }};
     this.classList = {add: () => {}, remove: () => {}};
   }
   set textContent(value) { this._text = String(value); this.children = []; }
   get textContent() { return this._text + this.children.map(c => c.textContent).join(' '); }
   append(...nodes) { this.children.push(...nodes); }
   replaceChildren(...nodes) { this._text = ''; this.children = [...nodes]; }
-  setAttribute(name, value) { this.attributes[name] = value; }
+  setAttribute(name, value) { this.attributes[name] = String(value); }
+  removeAttribute(name) { delete this.attributes[name]; }
+  getBoundingClientRect() { return {left: 20, top: 100, bottom: 132, width: 240, height: 32}; }
   addEventListener(type, listener) { (this.listeners[type] ||= []).push(listener); }
-  async fire(type) { for (const listener of this.listeners[type] || []) await listener({preventDefault() {}}); }
+  async fire(type, extra = {}) { for (const listener of this.listeners[type] || []) await listener({preventDefault() {}, ...extra}); }
   showModal() { this.open = true; }
   close() { this.open = false; for (const listener of this.listeners.close || []) listener({}); }
   reset() { for (const input of this.resetInputs || []) { input.value = ''; input.checked = true; } }
@@ -144,7 +147,9 @@ class Element {
     const result = [];
     function walk(node) {
       for (const child of node.children) {
-        if ((selector === 'details[open]' && child.tagName === 'details' && child.open) ||
+        if (selector === child.tagName ||
+            (selector.startsWith('.') && child.className.split(' ').includes(selector.slice(1))) ||
+            (selector === 'details[open]' && child.tagName === 'details' && child.open) ||
             (selector === '[data-account-action]' && child.dataset.accountAction)) result.push(child);
         walk(child);
       }
@@ -154,7 +159,7 @@ class Element {
 }
 const defaultStatus = {plugin_version: 'test-version', scope: 'single_process', quota_max_age_seconds: 120, default_limit: 4, home_supported: false};
 function account(id = 'a', group = 'real-account-a') {
-  return {id, auth_id: 'auth-' + id, name: '账号 ' + id, group_id: group, max_concurrency: 4, enabled: true, inflight: 1, key_fingerprint: 'sha256:abcd', status: 'ready', quota: {remaining_credits: 42, headroom: .75, updated_at: new Date().toISOString(), email: 'test@example.invalid', plan: 'pro', identity: 'real-a', windows: [{name: '小时窗口', used: 25, cap: 100, remaining: 75, reset_at: new Date().toISOString()}]}};
+  return {id, auth_id: 'auth-' + id, name: '账号 ' + id, group_id: group, max_concurrency: 4, enabled: true, inflight: 1, key_fingerprint: 'sha256:abcd', status: 'eligible', quota: {remaining_credits: 42, headroom: .75, updated_at: new Date(Date.now() - 1000).toISOString(), email: 'test@example.invalid', plan: 'pro', identity: 'real-a', windows: [{name: 'five_hour', used: 25, cap: 100, remaining: 75, reset_at: '2030-01-01T00:00:00Z'}, {name: 'weekly', used: 10, cap: 100, remaining: 90}], monthly_credits: 21, month: {used: 49, cap: 70, remaining: 21, source: 'plan_allowance'}, subscription_period_end: '2030-01-16T00:00:00Z', subscription_status: 'active'}};
 }
 function fixture(custom) {
   const nodes = new Map();
@@ -163,7 +168,7 @@ function fixture(custom) {
   get('accountForm').resetInputs = ['accountName', 'accountGroup', 'accountLimit', 'accountKey', 'accountEnabled'].map(get);
   get('importForm').resetInputs = [get('importJSON')];
   const calls = []; const timers = new Map(); let timerID = 0; let responseAccounts = [account(), account('b')];
-  const window = {confirm: () => true, addEventListener: () => {}};
+  const window = new Element('window'); window.confirm = () => true; window.innerWidth = 1280; window.innerHeight = 800;
   const document = {getElementById: get, createElement: tag => new Element(tag), body: new Element('body'), querySelectorAll: selector => Array.from(nodes.values()).flatMap(n => n.querySelectorAll(selector))};
   async function fetch(url, options) {
     const call = {url, options, body: options.body ? JSON.parse(options.body) : null}; calls.push(call);
@@ -185,9 +190,17 @@ function fixture(custom) {
   async function flush() { for (let i = 0; i < 14; i++) await Promise.resolve(); await new Promise(r => setImmediate(r)); }
   async function connect() { get('managementKey').value = 'fake-management-key'; await get('connectionForm').fire('submit'); await flush(); }
   function pageText() { return Array.from(nodes.values()).map(n => n.textContent).join(' '); }
-  return {get, calls, timers, flush, connect, pageText, setAccounts(value) {responseAccounts = value;}};
+  return {get, calls, timers, window, document, flush, connect, pageText, setAccounts(value) {responseAccounts = value;}};
 }
 function countPosts(f) { return f.calls.filter(c => c.options.method === 'POST').length; }
+function visibleText(node) {
+  if (node.hidden) return '';
+  const children = node.tagName === 'details' && !node.open ? node.children.filter(c => c.tagName === 'summary') : node.children;
+  return node._text + children.map(visibleText).join(' ');
+}
+`
+
+const poolPageBehaviorHarness = poolPageDOMHarness + `
 (async () => {
   const f = fixture(); await f.connect();
   assert.equal(f.get('managementKey').value, '', 'management input must clear immediately');
@@ -202,10 +215,11 @@ function countPosts(f) { return f.calls.filter(c => c.options.method === 'POST')
   assert.ok(f.get('groupRows').textContent.includes('2 / 2'));
   assert.ok(f.get('groupRows').textContent.includes('同组 cap 一致'));
   assert.equal(f.get('groupRows').children[0].children[2].textContent, '1', 'same shared inflight returned on two keys must count once');
-  for (const row of f.get('accountRows').children) {
-    assert.ok(row.children[4].textContent.includes('组共享在途 1 / 4'));
-    assert.ok(row.children[4].textContent.includes('API 未提供单 Key 在途'));
-  }
+  assert.equal(f.get('accountRows').children.length, 1, 'one card for the real account group');
+  const groupDetails = f.get('accountRows').querySelectorAll('.group-details')[0];
+  assert.equal(groupDetails.open, false, 'technical information is collapsed by default');
+  assert.ok(groupDetails.textContent.includes('组共享在途 1 / 4'));
+  assert.ok(groupDetails.textContent.includes('API 未提供单 Key 在途'));
   assert.equal(f.timers.size, 1, 'only polling timer remains');
   assert.equal([...f.timers.values()][0].delay, 5000);
   await f.get('pollButton').fire('click'); assert.equal(f.timers.size, 0);
@@ -216,9 +230,10 @@ function countPosts(f) { return f.calls.filter(c => c.options.method === 'POST')
   assert.equal(f.get('accountKey').required, false);
   f.get('accountLimit').value = '6'; await f.get('accountLimit').fire('input');
   assert.ok(f.get('groupCapHint').textContent.includes('原子更新整组 cap'));
+  f.get('accountEnabled').checked = false;
   await f.get('accountForm').fire('submit'); await f.flush();
   let save = f.calls.find(c => c.url.endsWith('/accounts') && c.options.method === 'POST');
-  assert.equal(save.body.id, 'a'); assert.equal(save.body.max_concurrency, 6); assert.ok(!('api_key' in save.body));
+  assert.equal(save.body.id, 'a'); assert.equal(save.body.max_concurrency, 6); assert.equal(save.body.enabled, false, 'per-key enable control is retained'); assert.ok(!('api_key' in save.body));
   assert.equal(f.get('accountDialog').open, false);
   await f.get('addButton').fire('click');
   f.get('accountName').value = 'new key'; f.get('accountGroup').value = 'real-account-a'; f.get('accountLimit').value = '9'; f.get('accountKey').value = 'fake-account-secret';
@@ -239,6 +254,13 @@ function countPosts(f) { return f.calls.filter(c => c.options.method === 'POST')
   f.get('importJSON').value = JSON.stringify({accounts: [{name: 'key1', group_id: 'real-new', api_key: 'fake-import-1', max_concurrency: 2}]});
   await f.get('importForm').fire('submit'); await f.flush();
   assert.ok(f.get('importResult').textContent.includes('成功 1 / 提交 1')); assert.equal(f.get('importDialog').open, false); assert.ok(!f.pageText().includes('fake-import-1'));
+  const refreshKey = f.get('accountRows').querySelectorAll('[data-account-action]')[1]; await refreshKey.fire('click'); await f.flush();
+  assert.ok(f.calls.some(c => c.url.endsWith('/quota/refresh') && c.body.id === 'a'), 'individual key refresh remains in group details');
+  await f.get('addButton').fire('click'); f.get('accountKey').value = 'fake-canceled-secret';
+  const beforeCancel = countPosts(f); await f.get('cancelAccountButton').fire('click');
+  assert.equal(countPosts(f), beforeCancel); assert.equal(f.get('accountKey').value, ''); assert.equal(f.get('accountDialog').open, false);
+  await f.get('importButton').fire('click'); f.get('importJSON').value = 'fake-canceled-import';
+  await f.get('importDialog').fire('cancel'); assert.equal(f.get('importJSON').value, ''); assert.equal(f.get('importDialog').open, false);
   const deleteButton = f.get('accountRows').querySelectorAll('[data-account-action]')[2]; await deleteButton.fire('click'); await f.flush();
   assert.ok(f.calls.some(c => c.url.endsWith('/accounts/delete') && c.body.id === 'a'));
   await f.get('refreshAllButton').fire('click'); await f.flush();
