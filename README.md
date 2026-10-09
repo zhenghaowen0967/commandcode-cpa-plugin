@@ -1,6 +1,21 @@
 # CommandCode 原生 CPA 账号池插件
 
-## 当前已上线版本（2026-10-09）
+## 当前版本：0.1.5-local（2026-10-09）
+
+`0.1.5-local` 在已验收的 0.1.4 可信凭据身份保护之上，修复 CommandCode 的
+Anthropic 历史消息级 `system` 兼容：顶层 `system` 仍是系统指令；历史提醒包装为
+`user` 的 `<system-reminder>`，不会提升权限。并行工具结果可分多条用户消息返回，
+结果完整对应后按调用 ID 对齐，再输出提醒及普通内容；不完整结果不伪造、不丢失。
+Chat Completions 与 Responses 共用该历史处理，保留工具参数、结果及错误标记。
+上游 I/O 前的坏输入返回 400、不可重试并释放 owner，不改真正上游错误的分类。
+
+2026-10-09 07:56 UTC 已无重启接管到 `commandcode-pool-next` / `0.1.5-local`，
+保全全部未过期 hold，无 Unban、取消在途请求或业务路由删除；两个账号原 Group、
+enabled、各 cap10 与六名称保持。真实 CLI 非流/流各一次均返回“兼容成功”、200/end_turn，
+CC Switch 与 CPA usage 按各自 session 精确关联；没有改默认模型映射或重发成功请求。
+完整边界与证据见 [VALIDATION.md](VALIDATION.md)。
+
+## 历史已上线版本：0.1.4-local（2026-10-09）
 
 源码版本 `0.1.4-local` 修复第三方 Responses API key 被 Codex quota guard 误封的问题。
 只对宿主确认的 Codex OAuth 429 建立配额 hold；BigModel 等 API key 的正常 429 仍由
@@ -12,7 +27,7 @@ Go 回归、race、vet 和同生产二进制的隔离原生 A/B 检查通过，�
 真实 Desktop 专属链路分别调用 Flash/GLM5.3，均 HTTP200、正文“验证成功”、正常 end_turn，
 CC Switch 与 CPA usage 均按 session 精确关联，验收后无 BigModel hold。
 生产 PID1948812 保持不变；接管脚本的补充独立 Sonnet 审查已完成，无确认缺陷。
-本版本不包含尚未完成的 Anthropic 历史消息级 system 提醒兼容修复。
+上述 0.1.4 当时不包含 Anthropic 历史消息级 system 提醒兼容修复；当前 0.1.5 已补实现与回归。
 
 此前基线 `commandcode-pool-next` / `0.1.3-local` 的旧 CommandCode 客户端名、裸
 上游名和 `commandcode/` 名称继续经过同一账号池。两个真实账号保持启用、原 Group、各
@@ -52,7 +67,7 @@ cap10；别名不新建账号、不拆分并发。请求汇总页 `/pool` 一请
 - CPA SDK 固定 `v8.0.20`，原生 ABI **1**、RPC schema **6**。本轮原生检查使用与生产
   完全相同的 CPA 二进制（自报 `8.0.21`，SHA256 `a4eaa1c1…`），不是较早的 `000204…`。
   SDK 缓存源码用于定位合同，关键行为以本轮实际二进制验证为准。
-- 本轮源码与产物为 `0.1.4-local`，生产切换和真实 CC Switch 两模型验收的完成状态以
+- 本轮源码与产物为 `0.1.5-local`，生产切换和真实 CLI 非流/流验收的完成状态以
   [VALIDATION.md](VALIDATION.md) 最新一节为准。历史请求事件、页面和账号池验收不冒充
   本轮重测；本轮不修改账号池排序、cap、六名称路由或其他渠道配置。
 - 更早的 cap=1 测试、双入口及 `0.1.1` / `0.1.2` 安装信息仅是历史验收阶段。
@@ -69,7 +84,7 @@ cap10；别名不新建账号、不拆分并发。请求汇总页 `/pool` 一请
 独立插件仓当前无 GitHub Release。上述现有自动更新路径不会把本候选库换回旧版。
 
 这不保证任意未来 CPA 版本的 SDK 兼容，也不防止显式调用插件商店安装其他版本。
-`0.1.4-local` 含非纯数字后缀，不能仅信“有更新”提示判断升级/降级；手工更新仍须核对
+`0.1.5-local` 含非纯数字后缀，不能仅信“有更新”提示判断升级/降级；手工更新仍须核对
 版本、库 SHA256、可信身份回归和生产读回，不触发每日更新来代替验收。
 
 ### Guard-only 受控接管模式
@@ -167,7 +182,7 @@ env PLUGIN_ID=commandcode-pool-next \
 
 `PLUGIN_ID` 决定插件/包文件命名及原生 URL。next/update full 使用各自独立管理地址，
 并提供原 `commandcode-pool` 管理 API 的兼容别名；guard-only 不提供这些别名，避免与
-仍在运行的旧池冲突。当前生产为 `commandcode-pool-update` full；本轮已完成 guard-only
+仍在运行的旧池冲突。当前生产为 `commandcode-pool-next` full；本轮已完成 guard-only
 暂存、hold 移交及无重启接管，详见 [VALIDATION.md](VALIDATION.md)。这不是自动部署机制，
 后续更新仍须核对实际活动 ID、库身份及保护状态。
 ProviderID 和客户端模型命名空间仍分别为 `commandcode-pool` /
@@ -181,13 +196,13 @@ Usage、账号池或执行能力，也不会接管第二份 Codex 状态。其�
 不能改用 `-v0.1.1-view.so`：加载器按最后一个 `-v` 分隔符解析，该名字会被识别成错误 ID。
 页面兼容库仅应在旧业务插件已安全移交并卸载后加载，不能覆盖正在使用的旧库。
 
-默认输出到 `dist/`，文件名前缀按 `PLUGIN_ID`，版本为 `0.1.4-local`：
+默认输出到 `dist/`，文件名前缀按 `PLUGIN_ID`，版本为 `0.1.5-local`：
 
 - `<PLUGIN_ID>.so` 与 CGO 生成的 `<PLUGIN_ID>.h`；
 - `LICENSE`、`NOTICE.md`、`THIRD_PARTY_NOTICES.md`、`UNIFIED_SCHEDULER.md`、
   `README.md`、`VALIDATION.md`、`config.example.yaml`；
 - `SHA256SUMS`，覆盖以上文件；
-- `<PLUGIN_ID>_0.1.4-local_linux_amd64.tar.gz`，含上述文件及校验清单。
+- `<PLUGIN_ID>_0.1.5-local_linux_amd64.tar.gz`，含上述文件及校验清单。
 
 输出目录的归属标记只用于安全重建，不是宿主 manifest。脚本不执行 `rm`，保留
 无关文件；首次构建遇到同名既有文件会拒绝，只有本脚本标记的自有产物可重建覆盖。
@@ -286,13 +301,13 @@ CPA 仅绑定 `127.0.0.1:18633`，插件上游仅指向 `127.0.0.1:18635`；目�
 
 - 插件管理：`/management.html#/plugins`；
 - 原生菜单：在侧栏选择“CommandCode 账号池”或“Codex 429 保护”；CPAMP 按资源路径排序。
-  当前生产 ID 为 `commandcode-pool-update`，对应 `/management.html#/plugin-pages/commandcode-pool-update/1`
-  和 `/management.html#/plugin-pages/commandcode-pool-update/0`；
+  当前生产 ID 为 `commandcode-pool-next`，对应 `/management.html#/plugin-pages/commandcode-pool-next/1`
+  和 `/management.html#/plugin-pages/commandcode-pool-next/0`；
 - iframe 资源：`/v0/resource/plugins/<PLUGIN_ID>/pool` 或 `/codex`；
 - 管理 API：`/v0/management/plugins/<PLUGIN_ID>/...`。
 
 `<PLUGIN_ID>` 须替换为实际加载的插件 ID；默认构建为 `commandcode-pool`，本轮正式部署为
-`commandcode-pool-update`。
+`commandcode-pool-next`。
 
 账号池 iframe 第一次需要手动输入当前宿主的管理密钥：直接通过 CPA 打开时使用 CPA
 Management Key；通过真正的 CPAMP 打开时使用 **CPAMP 管理员密钥**，由 CPAMP 服务端
