@@ -473,15 +473,11 @@ func FunctionCallOutputText(raw json.RawMessage) (string, *errclass.Error) {
 	return b.String(), nil
 }
 
-// ToolResultText flattens Claude tool_result content (JSON string or text
-// block array) into one text string for the target protocol's tool-result
-// field. Non-text blocks have no textual representation and are rejected
-// descriptively rather than dropped (FR-005); targetNoun names the target
-// wire vocabulary so each serving route keeps its own wording ("tool
-// messages carry text only", "function_call_output carries text only").
-// One kernel serves both adapters so the flatten and rejection policy
-// cannot diverge again.
-func ToolResultText(raw json.RawMessage, targetNoun string) (string, *errclass.Error) {
+// ToolResultText 将字符串、文本和工具引用转换为目标协议的纯文本结果。
+// 引用只作为结果数据，不提升为系统指令或工具调用；声明中的描述和原始
+// schema 保留引用、定义与大整数。未声明工具标为不可用，其他块不静默丢弃。
+// targetNoun 用于目标协议的错误措辞。
+func ToolResultText(raw json.RawMessage, tools []ClaudeTool, targetNoun string) (string, *errclass.Error) {
 	if !HasContent(raw) {
 		return "", nil
 	}
@@ -490,21 +486,69 @@ func ToolResultText(raw json.RawMessage, targetNoun string) (string, *errclass.E
 		return s, nil
 	}
 	var blocks []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
+		Type     string `json:"type"`
+		Text     string `json:"text"`
+		ToolName string `json:"tool_name"`
 	}
 	if err := json.Unmarshal(raw, &blocks); err != nil {
 		return "", errclass.Translation("tool_result content must be a string or an array of blocks")
 	}
 	var b strings.Builder
-	for _, blk := range blocks {
-		if blk.Type != "text" {
+	prevRef := false
+	for i := range blocks {
+		blk := &blocks[i]
+		switch blk.Type {
+		case "text":
+			// Adjacent plain text blocks keep the historical direct
+			// concatenation ("a"+"b"=="ab") so reference-free requests
+			// render byte-identically; only boundaries involving a
+			// reference block get the blank-line separator.
+			if prevRef && b.Len() > 0 {
+				b.WriteString("\n\n")
+			}
+			b.WriteString(blk.Text)
+			prevRef = false
+		case "tool_reference":
+			if strings.TrimSpace(blk.ToolName) == "" {
+				return "", errclass.Translation("tool_reference block missing tool_name")
+			}
+			if b.Len() > 0 {
+				b.WriteString("\n\n")
+			}
+			b.WriteString(toolReferenceText(blk.ToolName, tools))
+			prevRef = true
+		default:
 			return "", errclass.Translation(fmt.Sprintf(
 				"unsupported tool_result block type %q; %s", blk.Type, targetNoun))
 		}
-		b.WriteString(blk.Text)
 	}
 	return b.String(), nil
+}
+
+// toolReferenceText renders one tool_reference block into tool-result text.
+// The lookup walks the request's declared tools by exact name; a match
+// surfaces the declared description and the RAW input_schema bytes (no
+// normalization — refs, $defs, and large integers pass through verbatim),
+// a miss states the tool is unavailable. It never fabricates a definition
+// and never rewrites the referenced name.
+func toolReferenceText(name string, tools []ClaudeTool) string {
+	for i := range tools {
+		if tools[i].Name != name {
+			continue
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "Tool '%s' is now available.", name)
+		if d := tools[i].Description; d != "" {
+			b.WriteString("\n\nDescription: ")
+			b.WriteString(d)
+		}
+		if HasContent(tools[i].InputSchema) {
+			b.WriteString("\n\nParameters:\n")
+			b.Write(tools[i].InputSchema)
+		}
+		return b.String()
+	}
+	return fmt.Sprintf("Tool '%s' is unavailable because it is not declared in this request.", name)
 }
 
 // ClaudeImageURL converts an Anthropic image block source into an image

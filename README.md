@@ -1,6 +1,20 @@
 # CommandCode 原生 CPA 账号池插件
 
-## 当前源码：0.1.6-local（2026-10-09）
+## 当前源码：0.1.7-local（2026-10-10，北京时间）
+
+本轮修复 Claude `ToolSearch` 返回的 `tool_result.content` 内 `tool_reference` 兼容。
+引用转换为工具结果文本，保留工具名称；当前请求有对应声明时保留描述和完整参数定义，
+没有声明时明确提示不可用，不捏造定义。文本与引用混合保持顺序，不把工具结果提升为
+系统指令；工具调用 ID 和 `is_error` 保留。Chat Completions、Responses 和会话派生
+共用转换规则，畸形引用以及其他不支持的结果块仍在上游 I/O 前拒绝为 HTTP400。
+
+本轮不修改延迟工具声明策略、账号池排序、共享 cap、Codex 保护、配额横条或六名称路由。
+2026-10-09 17:19 UTC（北京时间 2026-10-10 01:19）已无重启上线为
+`commandcode-pool-next` / `0.1.7-local`；真实 Claude 当前配置网关的非流式和流式各一次
+均 HTTP200、正文“兼容成功”、正常结束，两侧日志按 session 精确关联。测试、原生验收、
+生产读回和验证边界见 [VALIDATION.md](VALIDATION.md)；构建本身仍不自动部署。
+
+## 历史已上线版本：0.1.6-local（2026-10-09）
 
 账号池页面按真实账号分组展示名称与 **5 小时、周、月剩余配额横条**。各窗口的重置时间直接显示，
 订阅周期结束独立显示，统一使用北京时间；指纹、ID、分组、套餐和并发等技术信息收进“详情”。
@@ -85,8 +99,8 @@ cap10；别名不新建账号、不拆分并发。请求汇总页 `/pool` 一请
 - CPA SDK 固定 `v8.0.20`，原生 ABI **1**、RPC schema **6**。本轮原生检查使用与生产
   完全相同的 CPA 二进制（自报 `8.0.21`，SHA256 `a4eaa1c1…`），不是较早的 `000204…`。
   SDK 缓存源码用于定位合同，关键行为以本轮实际二进制验证为准。
-- 本轮源码与产物为 `0.1.6-local`；0.1.5 的历史真实 CLI 验收不冒充本轮重测。
-  本轮只修改配额展示和只读展示字段，不修改账号池排序、cap、六名称路由或其他渠道配置；
+- 本轮源码与产物为 `0.1.7-local`；0.1.5 的历史真实 CLI 与 0.1.6 配额界面验收不冒充本轮重测。
+  本轮只补工具搜索引用兼容，不修改账号池排序、cap、配额展示、六名称路由或其他渠道配置；
   新版本验证与现场部署分别记录，见 [VALIDATION.md](VALIDATION.md)。
 - 更早的 cap=1 测试、双入口及 `0.1.1` / `0.1.2` 安装信息仅是历史验收阶段。
 - 仅支持 **Linux amd64、单个 CPA 进程、本地文件存储**。使用 Linux `syscall.Flock`
@@ -99,7 +113,7 @@ cap10；别名不新建账号、不拆分并发。请求汇总页 `/pool` 一请
 
 现用每日更新脚本只替换 CPA core binary，不覆盖 `plugins/` 或插件配置；CPAMP 自身
 更新不自动安装本插件。生产进程未配置 Home JWT，同步远端插件的 Home 启动路径未启用；
-独立插件仓已有 `v0.1.5-local` GitHub Release；发布本身不触发部署。上述现有自动更新路径不会把本候选库换回旧版。
+独立插件仓已有 `v0.1.5-local` GitHub Release；发布本身不触发部署。上述现有自动更新路径不会把本轮已安装库换回旧版。
 
 这不保证任意未来 CPA 版本的 SDK 兼容，也不防止显式调用插件商店安装其他版本。
 版本含 `-local` 后缀，不能仅信“有更新”提示判断升级/降级；手工更新仍须核对
@@ -203,9 +217,9 @@ env PLUGIN_ID=commandcode-pool-next \
 
 `PLUGIN_ID` 决定插件/包文件命名及原生 URL。next/update full 使用各自独立管理地址，
 并提供原 `commandcode-pool` 管理 API 的兼容别名；guard-only 不提供这些别名，避免与
-仍在运行的旧池冲突。0.1.5 的生产验收为 `commandcode-pool-next` full；历史 guard-only
-暂存、hold 移交及无重启接管详见 [VALIDATION.md](VALIDATION.md)。0.1.6 的生产切换须以
-本次实际读回为准，不能用历史记录代替。本脚本不是自动部署机制，
+仍在运行的旧池冲突。本轮 0.1.7 已实际读回为 `commandcode-pool-next` full；guard-only
+暂存、hold 移交及无重启接管详见 [VALIDATION.md](VALIDATION.md)。本次生产验收不以
+0.1.5 的历史成功代替。本脚本不是自动部署机制，
 后续更新仍须核对实际活动 ID、库身份及保护状态。
 ProviderID 和客户端模型命名空间仍分别为 `commandcode-pool` /
 `commandcode`，不改变客户端模型别名。构建只生成本地产物，不安装或部署。
@@ -218,13 +232,13 @@ Usage、账号池或执行能力，也不会接管第二份 Codex 状态。其�
 不能改用 `-v0.1.1-view.so`：加载器按最后一个 `-v` 分隔符解析，该名字会被识别成错误 ID。
 页面兼容库仅应在旧业务插件已安全移交并卸载后加载，不能覆盖正在使用的旧库。
 
-默认输出到 `dist/`，文件名前缀按 `PLUGIN_ID`，版本为 `0.1.6-local`：
+默认输出到 `dist/`，文件名前缀按 `PLUGIN_ID`，版本为 `0.1.7-local`：
 
 - `<PLUGIN_ID>.so` 与 CGO 生成的 `<PLUGIN_ID>.h`；
 - `LICENSE`、`NOTICE.md`、`THIRD_PARTY_NOTICES.md`、`UNIFIED_SCHEDULER.md`、
   `README.md`、`VALIDATION.md`、`config.example.yaml`；
 - `SHA256SUMS`，覆盖以上文件；
-- `<PLUGIN_ID>_0.1.6-local_linux_amd64.tar.gz`，含上述文件及校验清单。
+- `<PLUGIN_ID>_0.1.7-local_linux_amd64.tar.gz`，含上述文件及校验清单。
 
 输出目录的归属标记只用于安全重建，不是宿主 manifest。脚本不执行 `rm`，保留
 无关文件；首次构建遇到同名既有文件会拒绝，只有本脚本标记的自有产物可重建覆盖。
@@ -323,15 +337,15 @@ CPA 仅绑定 `127.0.0.1:18633`，插件上游仅指向 `127.0.0.1:18635`；目�
 
 - 插件管理：`/management.html#/plugins`；
 - 原生菜单：在侧栏选择“CommandCode 账号池”或“Codex 429 保护”；CPAMP 按资源路径排序。
-  0.1.6 候选使用 `commandcode-pool-update`，加载后的入口为
-  `/management.html#/plugin-pages/commandcode-pool-update/1` 和
-  `/management.html#/plugin-pages/commandcode-pool-update/0`；0.1.5 的历史部署 ID 为
-  `commandcode-pool-next`，实际活动入口以插件管理页面读回为准；
+  0.1.7 本轮已上线使用 `commandcode-pool-next`，加载后的入口为
+  `/management.html#/plugin-pages/commandcode-pool-next/1` 和
+  `/management.html#/plugin-pages/commandcode-pool-next/0`；0.1.6 的历史部署 ID 为
+  `commandcode-pool-update`，实际活动入口以插件管理页面读回为准；
 - iframe 资源：`/v0/resource/plugins/<PLUGIN_ID>/pool` 或 `/codex`；
 - 管理 API：`/v0/management/plugins/<PLUGIN_ID>/...`。
 
-`<PLUGIN_ID>` 须替换为实际加载的插件 ID；默认构建为 `commandcode-pool`，0.1.6 候选为
-`commandcode-pool-update`。
+`<PLUGIN_ID>` 须替换为实际加载的插件 ID；默认构建为 `commandcode-pool`，0.1.7 本轮部署为
+`commandcode-pool-next`。
 
 账号池 iframe 第一次需要手动输入当前宿主的管理密钥：直接通过 CPA 打开时使用 CPA
 Management Key；通过真正的 CPAMP 打开时使用 **CPAMP 管理员密钥**，由 CPAMP 服务端

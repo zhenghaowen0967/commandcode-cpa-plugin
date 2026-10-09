@@ -321,7 +321,7 @@ func deriveCommandCodeSessionID(sourceFormat string, originalRequest []byte) (st
 				case "image":
 					content.WriteString(block.URL)
 				case "tool_result":
-					text, eErr := shared.ToolResultText(block.Result, "tool messages carry text only")
+					text, eErr := shared.ToolResultText(block.Result, req.Tools, "tool messages carry text only")
 					if eErr != nil {
 						return "", eErr
 					}

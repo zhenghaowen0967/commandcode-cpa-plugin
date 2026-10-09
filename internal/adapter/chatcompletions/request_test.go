@@ -507,6 +507,119 @@ func TestBuildRequestClaudeVariants(t *testing.T) {
 	})
 }
 
+// toolReferenceBody builds a claude-source request whose tool_result
+// content carries tool_reference blocks; decl adds the tool declarations
+// so the reference resolves against them.
+func toolReferenceBody(blocks string, decl string) string {
+	body := `{"model":"x","max_tokens":64,"messages":[` +
+		`{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Read","input":{"path":"a.go"}}]},` +
+		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":[` + blocks + `]}]}` +
+		`]` + decl + `}`
+	return body
+}
+
+func toolReferenceDeclarations() string {
+	return `,"tools":[
+		{"name":"Read","description":"Read a file","input_schema":{"type":"object","properties":{"path":{"$ref":"#/$defs/path"}},"required":["path"],"additionalProperties":false,"$defs":{"path":{"type":"string","minLength":1}}}},
+		{"name":"Bash","description":"Run a command","input_schema":{"type":"object","properties":{"command":{"type":"string"}}}}
+	]`
+}
+
+func TestBuildRequestClaudeToolReference(t *testing.T) {
+	t.Run("declared reference becomes tool-message text with name, description, raw schema", func(t *testing.T) {
+		m := mustBuild(t, "claude", toolReferenceBody(
+			`{"type":"tool_reference","tool_name":"Read"}`, toolReferenceDeclarations()), nil)
+		msgs := m["messages"].([]any)
+		tool := msgs[1].(map[string]any)
+		if tool["role"] != "tool" || tool["tool_call_id"] != "t1" {
+			t.Fatalf("tool message pairing wrong: %v", tool)
+		}
+		content, _ := tool["content"].(string)
+		if !strings.Contains(content, "Tool 'Read' is now available.") ||
+			!strings.Contains(content, "Description: Read a file") ||
+			!strings.Contains(content, `"properties":{"path":{"$ref":"#/$defs/path"}}`) ||
+			!strings.Contains(content, `"$defs":{"path":{"type":"string","minLength":1}}`) {
+			t.Fatalf("reference rendering incomplete: %q", content)
+		}
+		// No tool call is fabricated from the reference: the assistant
+		// tool_use history stays exactly one call to Read.
+		asst := msgs[0].(map[string]any)
+		if calls := asst["tool_calls"].([]any); len(calls) != 1 ||
+			calls[0].(map[string]any)["function"].(map[string]any)["name"] != "Read" {
+			t.Fatalf("reference fabricated a tool call: %v", asst)
+		}
+		// The declared tools forward unchanged (name/description/schema).
+		tools := m["tools"].([]any)
+		if len(tools) != 2 {
+			t.Fatalf("declared tools = %d, want 2: %v", len(tools), tools)
+		}
+		rf := tools[0].(map[string]any)["function"].(map[string]any)
+		if rf["name"] != "Read" || rf["description"] != "Read a file" ||
+			!strings.Contains(fmt.Sprint(rf["parameters"]), "$defs") {
+			t.Fatalf("declared tool definition changed: %v", rf)
+		}
+		// The reference stays result data: no system message is injected.
+		if msgs[0].(map[string]any)["role"] != "assistant" {
+			t.Fatalf("system message injected: %v", msgs)
+		}
+	})
+	t.Run("mixed text and references keep order in one tool message", func(t *testing.T) {
+		m := mustBuild(t, "claude", toolReferenceBody(
+			`{"type":"text","text":"prefix"},{"type":"tool_reference","tool_name":"Bash"},{"type":"text","text":"suffix"}`,
+			toolReferenceDeclarations()), nil)
+		msgs := m["messages"].([]any)
+		tool := msgs[1].(map[string]any)
+		content, _ := tool["content"].(string)
+		p, b, s := strings.Index(content, "prefix"), strings.Index(content, "Tool 'Bash'"), strings.Index(content, "suffix")
+		if p < 0 || b < 0 || s < 0 || !(p < b && b < s) {
+			t.Fatalf("mixed order lost: %q", content)
+		}
+	})
+	t.Run("undeclared reference states unavailability, no fabricated definition", func(t *testing.T) {
+		m := mustBuild(t, "claude", toolReferenceBody(
+			`{"type":"tool_reference","tool_name":"Grep"}`, toolReferenceDeclarations()), nil)
+		tool := m["messages"].([]any)[1].(map[string]any)
+		content, _ := tool["content"].(string)
+		if !strings.Contains(content, "Tool 'Grep' is unavailable because it is not declared in this request.") {
+			t.Fatalf("unavailable wording missing: %q", content)
+		}
+		if strings.Contains(content, "Description:") || strings.Contains(content, "Parameters:") {
+			t.Fatalf("fabricated definition for undeclared tool: %q", content)
+		}
+	})
+	t.Run("is_error prefixes the reference text", func(t *testing.T) {
+		body := `{"model":"x","max_tokens":64,"messages":[` +
+			`{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Read","input":{}}]},` +
+			`{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":[{"type":"tool_reference","tool_name":"Read"}]}]}]` +
+			toolReferenceDeclarations() + `}`
+		m := mustBuild(t, "claude", body, nil)
+		tool := m["messages"].([]any)[1].(map[string]any)
+		if content, _ := tool["content"].(string); !strings.HasPrefix(content, "[error] Tool 'Read' is now available.") {
+			t.Fatalf("is_error marker missing on reference: %q", content)
+		}
+	})
+	t.Run("malformed references stay ClassTranslation", func(t *testing.T) {
+		for _, blocks := range []string{
+			`{"type":"tool_reference"}`,
+			`{"type":"tool_reference","tool_name":"  "}`,
+			`{"type":"tool_reference","tool_name":7}`,
+		} {
+			_, eErr := BuildRequest("m", "claude", []byte(toolReferenceBody(blocks, toolReferenceDeclarations())), nil)
+			if eErr == nil || eErr.Class != errclass.ClassTranslation {
+				t.Fatalf("malformed reference %s accepted: %+v", blocks, eErr)
+			}
+		}
+	})
+	t.Run("unknown block after reference still rejected", func(t *testing.T) {
+		_, eErr := BuildRequest("m", "claude", []byte(toolReferenceBody(
+			`{"type":"tool_reference","tool_name":"Read"},{"type":"mystery"}`, toolReferenceDeclarations())), nil)
+		if eErr == nil || eErr.Class != errclass.ClassTranslation ||
+			!strings.Contains(eErr.Message, `unsupported tool_result block type "mystery"`) {
+			t.Fatalf("unknown block after reference: %+v", eErr)
+		}
+	})
+}
+
 func TestBuildRequestResponses(t *testing.T) {
 	body := `{
 		"model":"x","max_output_tokens":99,"temperature":0.7,

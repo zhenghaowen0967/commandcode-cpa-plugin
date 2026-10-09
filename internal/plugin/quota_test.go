@@ -48,8 +48,8 @@ func TestManagementRegistration(t *testing.T) {
 	}
 	var registration registrationResult
 	decodeResult(t, mustHandle(t, m, pluginabi.MethodPluginRegister, lifecycleRequestBody(t, testValidYAML)), &registration)
-	if registration.Metadata.Version != "0.1.6-local" {
-		t.Fatalf("plugin version = %q, want new local version", registration.Metadata.Version)
+	if registration.Metadata.Version != pluginVersion {
+		t.Fatalf("plugin version = %q, want current local version %q", registration.Metadata.Version, pluginVersion)
 	}
 	if !registration.Capabilities.ManagementAPI {
 		t.Fatal("registration did not advertise management_api")

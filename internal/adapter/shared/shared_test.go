@@ -435,25 +435,140 @@ func TestClaudeSystemText(t *testing.T) {
 
 func TestToolResultText(t *testing.T) {
 	for _, raw := range []json.RawMessage{nil, json.RawMessage(`null`)} {
-		if got, _ := ToolResultText(raw, "n"); got != "" {
+		if got, _ := ToolResultText(raw, nil, "n"); got != "" {
 			t.Errorf("absent content = %q", got)
 		}
 	}
-	if got, _ := ToolResultText(json.RawMessage(`"plain"`), "n"); got != "plain" {
+	if got, _ := ToolResultText(json.RawMessage(`"plain"`), nil, "n"); got != "plain" {
 		t.Errorf("string content = %q", got)
 	}
-	got, eErr := ToolResultText(json.RawMessage(`[{"type":"text","text":"a"},{"type":"text","text":"b"}]`), "n")
+	got, eErr := ToolResultText(json.RawMessage(`[{"type":"text","text":"a"},{"type":"text","text":"b"}]`), nil, "n")
 	if eErr != nil || got != "ab" {
 		t.Errorf("block array = %q, %v; want ab, nil", got, eErr)
 	}
-	if _, eErr := ToolResultText(json.RawMessage(`[{"type":"image","source":{}}]`), "tool messages carry text only"); eErr == nil ||
+	if _, eErr := ToolResultText(json.RawMessage(`[{"type":"image","source":{}}]`), nil, "tool messages carry text only"); eErr == nil ||
 		eErr.Class != errclass.ClassTranslation ||
 		eErr.Message != `unsupported tool_result block type "image"; tool messages carry text only` {
 		t.Errorf("non-text block err = %+v", eErr)
 	}
-	if _, eErr := ToolResultText(json.RawMessage(`42`), "n"); eErr == nil || eErr.Class != errclass.ClassTranslation {
+	if _, eErr := ToolResultText(json.RawMessage(`42`), nil, "n"); eErr == nil || eErr.Class != errclass.ClassTranslation {
 		t.Errorf("malformed content err = %+v", eErr)
 	}
+}
+
+// toolReferenceTools is the declared-tools fixture for the tool_reference
+// kernel tests: one fully-declared tool with refs/defs and a large integer,
+// one bare-named tool with neither description nor schema.
+var toolReferenceTools = []ClaudeTool{
+	{
+		Name:        "Read",
+		Description: "Read a file",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"$ref":"#/$defs/path"}},"required":["path"],"additionalProperties":false,"$defs":{"path":{"type":"string","minLength":1}},"x-large":{"max":9007199254740993}}`),
+	},
+	{Name: "Bash"},
+}
+
+func TestToolResultTextToolReference(t *testing.T) {
+	t.Run("declared reference preserves name, description, and raw schema", func(t *testing.T) {
+		got, eErr := ToolResultText(json.RawMessage(
+			`[{"type":"tool_reference","tool_name":"Read"}]`), toolReferenceTools, "n")
+		if eErr != nil {
+			t.Fatalf("declared reference rejected: %+v", eErr)
+		}
+		if !strings.Contains(got, "Tool 'Read' is now available.") {
+			t.Fatalf("availability line missing: %q", got)
+		}
+		if !strings.Contains(got, "Description: Read a file") {
+			t.Fatalf("declared description missing: %q", got)
+		}
+		if !strings.Contains(got, `"properties":{"path":{"$ref":"#/$defs/path"}}`) ||
+			!strings.Contains(got, `"$defs":{"path":{"type":"string","minLength":1}}`) ||
+			!strings.Contains(got, `"max":9007199254740993`) {
+			t.Fatalf("raw schema (refs/defs/large integer) not preserved verbatim: %q", got)
+		}
+	})
+	t.Run("declared tool without description or schema keeps the name only", func(t *testing.T) {
+		got, eErr := ToolResultText(json.RawMessage(
+			`[{"type":"tool_reference","tool_name":"Bash"}]`), toolReferenceTools, "n")
+		if eErr != nil || got != "Tool 'Bash' is now available." {
+			t.Fatalf("bare tool reference = %q, %+v", got, eErr)
+		}
+	})
+	t.Run("undeclared reference stays unavailable without fabricating a definition", func(t *testing.T) {
+		got, eErr := ToolResultText(json.RawMessage(
+			`[{"type":"tool_reference","tool_name":"Grep"}]`), toolReferenceTools, "n")
+		if eErr != nil {
+			t.Fatalf("undeclared reference must not fail: %+v", eErr)
+		}
+		if !strings.Contains(got, "Tool 'Grep' is unavailable because it is not declared in this request.") {
+			t.Fatalf("unavailable line missing: %q", got)
+		}
+		for _, fabricated := range []string{"Description:", "Parameters:"} {
+			if strings.Contains(got, fabricated) {
+				t.Fatalf("undeclared reference fabricated a definition (%s): %q", fabricated, got)
+			}
+		}
+	})
+	t.Run("nil tools list renders every reference unavailable", func(t *testing.T) {
+		got, eErr := ToolResultText(json.RawMessage(
+			`[{"type":"tool_reference","tool_name":"Read"}]`), nil, "n")
+		if eErr != nil || !strings.Contains(got, "is unavailable") {
+			t.Fatalf("nil tools reference = %q, %+v", got, eErr)
+		}
+	})
+	t.Run("mixed text and references keep content order", func(t *testing.T) {
+		got, eErr := ToolResultText(json.RawMessage(
+			`[{"type":"text","text":"before"},{"type":"tool_reference","tool_name":"Bash"},{"type":"text","text":"after"}]`),
+			toolReferenceTools, "n")
+		if eErr != nil {
+			t.Fatalf("mixed rejected: %+v", eErr)
+		}
+		bashAt := strings.Index(got, "Tool 'Bash' is now available.")
+		beforeAt := strings.Index(got, "before")
+		afterAt := strings.Index(got, "after")
+		if beforeAt < 0 || bashAt < 0 || afterAt < 0 || !(beforeAt < bashAt && bashAt < afterAt) {
+			t.Fatalf("order lost: %q", got)
+		}
+		if !strings.Contains(got, "before\n\nTool 'Bash'") || !strings.Contains(got, "available.\n\nafter") {
+			t.Fatalf("mixed boundaries wrong: %q", got)
+		}
+	})
+	t.Run("plain text keeps direct concatenation", func(t *testing.T) {
+		got, eErr := ToolResultText(json.RawMessage(
+			`[{"type":"text","text":"a"},{"type":"text","text":"b"}]`), toolReferenceTools, "n")
+		if eErr != nil || got != "ab" {
+			t.Fatalf("text-only = %q, %+v; want ab", got, eErr)
+		}
+	})
+	t.Run("whitespace tool_name is malformed", func(t *testing.T) {
+		for _, name := range []string{"", "   ", "\t\n"} {
+			_, eErr := ToolResultText(json.RawMessage(`[{"type":"tool_reference","tool_name":"`+
+				name+`"}]`), toolReferenceTools, "n")
+			if eErr == nil || eErr.Class != errclass.ClassTranslation {
+				t.Fatalf("tool_name %q accepted: %+v", name, eErr)
+			}
+		}
+	})
+	t.Run("non-string tool_name fails decode", func(t *testing.T) {
+		_, eErr := ToolResultText(json.RawMessage(`[{"type":"tool_reference","tool_name":42}]`), toolReferenceTools, "n")
+		if eErr == nil || eErr.Class != errclass.ClassTranslation {
+			t.Fatalf("numeric tool_name accepted: %+v", eErr)
+		}
+	})
+	t.Run("null tool_reference element fails decode", func(t *testing.T) {
+		_, eErr := ToolResultText(json.RawMessage(`[{"type":"tool_reference","tool_name":"Read"},null]`), toolReferenceTools, "n")
+		if eErr == nil || eErr.Class != errclass.ClassTranslation {
+			t.Fatalf("null block accepted: %+v", eErr)
+		}
+	})
+	t.Run("unsupported block type still rejected", func(t *testing.T) {
+		_, eErr := ToolResultText(json.RawMessage(
+			`[{"type":"tool_reference","tool_name":"Read"},{"type":"image","source":{}}]`), toolReferenceTools, "n")
+		if eErr == nil || eErr.Class != errclass.ClassTranslation ||
+			!strings.Contains(eErr.Message, `unsupported tool_result block type "image"`) {
+			t.Fatalf("image block after reference not rejected: %+v", eErr)
+		}
+	})
 }
 
 func TestStopFinishRoundTrip(t *testing.T) {

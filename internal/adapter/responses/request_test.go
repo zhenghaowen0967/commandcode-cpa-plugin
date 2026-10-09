@@ -566,6 +566,102 @@ func TestFromClaudeMessagesErrors(t *testing.T) {
 	}
 }
 
+// respToolReferenceBody builds a claude-source request whose tool_result
+// content carries tool_reference blocks; decl adds the tool declarations.
+func respToolReferenceBody(blocks string, decl string) string {
+	return `{"model":"x","max_tokens":64,"messages":[` +
+		`{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Read","input":{"path":"a.go"}}]},` +
+		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":[` + blocks + `]}]}` +
+		`]` + decl + `}`
+}
+
+func respToolReferenceDeclarations() string {
+	return `,"tools":[
+		{"name":"Read","description":"Read a file","input_schema":{"type":"object","properties":{"path":{"$ref":"#/$defs/path"}},"required":["path"],"additionalProperties":false,"$defs":{"path":{"type":"string","minLength":1}}}},
+		{"name":"Bash","description":"Run a command","input_schema":{"type":"object","properties":{"command":{"type":"string"}}}}
+	]`
+}
+
+func TestFromClaudeMessagesToolReference(t *testing.T) {
+	t.Run("declared reference renders into function_call_output with name, description, raw schema", func(t *testing.T) {
+		m := decodeReq(t, mustBuild(t, "m", "claude",
+			[]byte(respToolReferenceBody(`{"type":"tool_reference","tool_name":"Read"}`, respToolReferenceDeclarations())), nil))
+		items := inputItems(t, m)
+		if items[0].(map[string]any)["type"] != "function_call" {
+			t.Fatalf("first item not the assistant call: %v", items[0])
+		}
+		fco := items[1].(map[string]any)
+		if fco["type"] != "function_call_output" || fco["call_id"] != "t1" {
+			t.Fatalf("output item pairing wrong: %v", fco)
+		}
+		out, _ := fco["output"].(string)
+		if !strings.Contains(out, "Tool 'Read' is now available.") ||
+			!strings.Contains(out, "Description: Read a file") ||
+			!strings.Contains(out, `"properties":{"path":{"$ref":"#/$defs/path"}}`) ||
+			!strings.Contains(out, `"$defs":{"path":{"type":"string","minLength":1}}`) {
+			t.Fatalf("reference rendering incomplete: %q", out)
+		}
+		// The reference never becomes instructions nor a tool call.
+		if _, ok := m["instructions"]; ok {
+			t.Fatalf("reference promoted to instructions: %v", m["instructions"])
+		}
+		if items[0].(map[string]any)["type"] != "function_call" ||
+			len(items) != 2 {
+			t.Fatalf("reference fabricated an input item: %v", items)
+		}
+		tools := m["tools"].([]any)
+		if len(tools) != 2 || tools[0].(map[string]any)["name"] != "Read" {
+			t.Fatalf("declared tools changed: %v", tools)
+		}
+		params := fmt.Sprint(tools[0].(map[string]any)["parameters"])
+		if !strings.Contains(params, "$defs") {
+			t.Fatalf("declared tool schema lost refs: %v", params)
+		}
+	})
+	t.Run("mixed text and references keep order in one output", func(t *testing.T) {
+		m := decodeReq(t, mustBuild(t, "m", "claude",
+			[]byte(respToolReferenceBody(
+				`{"type":"text","text":"prefix"},{"type":"tool_reference","tool_name":"Bash"},{"type":"text","text":"suffix"}`,
+				respToolReferenceDeclarations())), nil))
+		out, _ := inputItems(t, m)[1].(map[string]any)["output"].(string)
+		p, b, s := strings.Index(out, "prefix"), strings.Index(out, "Tool 'Bash'"), strings.Index(out, "suffix")
+		if p < 0 || b < 0 || s < 0 || !(p < b && b < s) {
+			t.Fatalf("mixed order lost: %q", out)
+		}
+	})
+	t.Run("undeclared reference unavailable without fabricated definition", func(t *testing.T) {
+		m := decodeReq(t, mustBuild(t, "m", "claude",
+			[]byte(respToolReferenceBody(`{"type":"tool_reference","tool_name":"Grep"}`, respToolReferenceDeclarations())), nil))
+		out, _ := inputItems(t, m)[1].(map[string]any)["output"].(string)
+		if !strings.Contains(out, "Tool 'Grep' is unavailable because it is not declared in this request.") {
+			t.Fatalf("unavailable wording missing: %q", out)
+		}
+		if strings.Contains(out, "Description:") || strings.Contains(out, "Parameters:") {
+			t.Fatalf("fabricated definition: %q", out)
+		}
+	})
+	t.Run("is_error prefixes the reference output", func(t *testing.T) {
+		body := `{"model":"x","max_tokens":64,"messages":[` +
+			`{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Read","input":{}}]},` +
+			`{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":[{"type":"tool_reference","tool_name":"Read"}]}]}]` +
+			respToolReferenceDeclarations() + `}`
+		m := decodeReq(t, mustBuild(t, "m", "claude", []byte(body), nil))
+		if out, _ := inputItems(t, m)[1].(map[string]any)["output"].(string); !strings.HasPrefix(out, "[error] Tool 'Read' is now available.") {
+			t.Fatalf("is_error marker missing on reference: %q", out)
+		}
+	})
+	t.Run("malformed references stay ClassTranslation", func(t *testing.T) {
+		for _, blocks := range []string{
+			`{"type":"tool_reference"}`,
+			`{"type":"tool_reference","tool_name":"  "}`,
+			`{"type":"tool_reference","tool_name":7}`,
+		} {
+			_, eErr := BuildRequest("m", "claude", []byte(respToolReferenceBody(blocks, respToolReferenceDeclarations())), nil)
+			wantErr(t, eErr, errclass.ClassTranslation)
+		}
+	})
+}
+
 // Empty assistant tool_call arguments normalize to "{}" on the
 // function_call item so downstream parsers always see valid JSON (FR-005).
 func TestFromChatCompletionsEmptyToolArguments(t *testing.T) {
