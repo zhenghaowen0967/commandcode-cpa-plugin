@@ -1,16 +1,23 @@
 # CommandCode 原生 CPA 账号池插件
 
-## 当前迁入改造（2026-10-09）
+## 当前已上线版本（2026-10-09）
 
-源码版本 `0.1.3-local` 新增 `model-aliases`，用于把旧 CommandCode 客户端模型名接到同一
-账号池，保留原 `commandcode/` 名称。别名不新建账号，也不拆分真实 Group 的并发计数。
-当前生产仍是下述 `0.1.2-local`；本轮迁入候选正在验证，不能把源码改动当已部署。
+源码版本 `0.1.4-local` 修复第三方 Responses API key 被 Codex quota guard 误封的问题。
+只对宿主确认的 Codex OAuth 429 建立配额 hold；BigModel 等 API key 的正常 429 仍由
+CPA 原有冷却和退避处理。历史 API key hold 不再阻塞可信的 API key 候选，但不会自动
+清空其他 hold。判断不依赖模型名、上游域名、客户端 Key 或错误正文。
 
-`commandcode-pool` / `0.1.2-local` 已于 2026-10-09 完成生产热切换：现用 CPA 8317 以
-HostID `commandcode-pool-update`（优先级100，full）运行本版本，两真实账号保持启用、
-原 Group 与 cap10，CPAMP 一组两菜单，无重启无 unban。请求汇总页 `/pool` 一请求一行；
-`GET /events?scope=requests` 为请求过程视图，默认 raw 兼容。旧 0.1.1 next 实例已删除，
-私有备份在生产受限目录 `request-summary-update-20261009/`。
+Go 回归、race、vet 和同生产二进制的隔离原生 A/B 检查通过，独立 Sonnet 审查无确认缺陷。
+2026-10-09 06:17 UTC 已无重启热切换到 `commandcode-pool-update` / `0.1.4-local`；
+真实 Desktop 专属链路分别调用 Flash/GLM5.3，均 HTTP200、正文“验证成功”、正常 end_turn，
+CC Switch 与 CPA usage 均按 session 精确关联，验收后无 BigModel hold。
+生产 PID1948812 保持不变；接管脚本的补充独立 Sonnet 审查已完成，无确认缺陷。
+本版本不包含尚未完成的 Anthropic 历史消息级 system 提醒兼容修复。
+
+此前基线 `commandcode-pool-next` / `0.1.3-local` 的旧 CommandCode 客户端名、裸
+上游名和 `commandcode/` 名称继续经过同一账号池。两个真实账号保持启用、原 Group、各
+cap10；别名不新建账号、不拆分并发。请求汇总页 `/pool` 一请求一行，
+`GET /events?scope=requests` 为请求过程视图，默认 raw 接口兼容。
 它复用 [mczhoucn/commandcode-go-cliproxyapi](https://github.com/mczhoucn/commandcode-go-cliproxyapi)
 的 MIT 基座，固定提交为
 [`ea84cdd799564f644c6f9f39c7dc356d0f013526`](https://github.com/mczhoucn/commandcode-go-cliproxyapi/tree/ea84cdd799564f644c6f9f39c7dc356d0f013526)。
@@ -21,8 +28,9 @@ HostID `commandcode-pool-update`（优先级100，full）运行本版本，两�
 
 ## 统一调度（方案一）
 
-- `usage.handle` 仅消费 Codex 失败的 429，使用五小时/周窗口 reset；缺少可靠 header 时
-  保守禁用五小时。重复 429 不缩短有效禁用期限，双窗口都满时取较晚的有效 reset。
+- `usage.handle` 仅消费宿主确认 `provider=codex` 且 `AuthType=oauth` 的失败 429，使用
+  五小时/周窗口 reset；真正 OAuth 缺少可靠 header 时仍保守禁用五小时。重复 429 不缩短
+  有效期限，双窗口都满时取较晚的有效 reset。API key、缺失或未知身份不新建该 hold。
 - Codex 过滤、列表与手动解禁使用同一份 Manager 内存状态。配置热更新保留该状态，
   新进程重启后丢失，不写 OAuth 文件或修改 CPAMP 的禁用记录。
 - 受过滤的请求不再委托内建调度重新读取全候选；全部禁用时明确拒绝。
@@ -41,23 +49,28 @@ HostID `commandcode-pool-update`（优先级100，full）运行本版本，两�
 
 ## 当前交付与验证边界
 
-- CPA SDK 固定 `v8.0.20`，原生 ABI **1**、RPC schema **6**；CPAMP 原版产物固定
-  `v1.14.4`。现用 CPA 二进制摘要与官方发行二进制摘要不同；当前 SDK/toolsearch 二进制
-  SHA256 为 `000204…`，与官方 `6efbd386…` 不同。它只证明以当前二进制完成的隔离检查，
-  不据此声称 SDK 源码补丁已逐项核实，也不代表 CPAMP 版本匹配即调度共存。
-- 当前源码版本为 `0.1.2-local`。独立请求事件缓存、`scope=requests` 与中文请求汇总页面
-  已通过受影响三个包的普通/race 测试、vet 和本地构建。浏览器与同 binary 隔离加载
-  因工具安全分类服务暂时不可用未执行；新版未生产安装，不能视为现用页面已更新。
-- 现用生产已运行 `commandcode-pool-update` / `0.1.2-local`（2026-10-09 切换，优先级100 full）。
-  两真实账号启用、原 Group、cap10/10 保持；请求汇总页面与 `scope=requests` 已上线。
-  切换证据与边界见 [VALIDATION.md](VALIDATION.md)。
-  历史 `49766793…` / `0.1.1-local` next 实例已删除，备份在生产受限目录；
-  更早的 cap=1 真实测试与双入口清理是历史验收阶段，不是当前配置。
+- CPA SDK 固定 `v8.0.20`，原生 ABI **1**、RPC schema **6**。本轮原生检查使用与生产
+  完全相同的 CPA 二进制（自报 `8.0.21`，SHA256 `a4eaa1c1…`），不是较早的 `000204…`。
+  SDK 缓存源码用于定位合同，关键行为以本轮实际二进制验证为准。
+- 本轮源码与产物为 `0.1.4-local`，生产切换和真实 CC Switch 两模型验收的完成状态以
+  [VALIDATION.md](VALIDATION.md) 最新一节为准。历史请求事件、页面和账号池验收不冒充
+  本轮重测；本轮不修改账号池排序、cap、六名称路由或其他渠道配置。
+- 更早的 cap=1 测试、双入口及 `0.1.1` / `0.1.2` 安装信息仅是历史验收阶段。
 - 仅支持 **Linux amd64、单个 CPA 进程、本地文件存储**。使用 Linux `syscall.Flock`
   排斥共用 auth/state 路径的另一个池；这不是跨实例协调机制。
   **不支持 Home，不支持多实例共享账号并发，也不声明跨主机安全**。
 - 本包不自动部署、提交、发布、重启生产服务或使用真实账号。真实账号、生产部署和发布
   仍需分别授权。
+
+### 自动更新范围（2026-10-09 核验）
+
+现用每日更新脚本只替换 CPA core binary，不覆盖 `plugins/` 或插件配置；CPAMP 自身
+更新不自动安装本插件。生产进程未配置 Home JWT，同步远端插件的 Home 启动路径未启用；
+独立插件仓当前无 GitHub Release。上述现有自动更新路径不会把本候选库换回旧版。
+
+这不保证任意未来 CPA 版本的 SDK 兼容，也不防止显式调用插件商店安装其他版本。
+`0.1.4-local` 含非纯数字后缀，不能仅信“有更新”提示判断升级/降级；手工更新仍须核对
+版本、库 SHA256、可信身份回归和生产读回，不触发每日更新来代替验收。
 
 ### Guard-only 受控接管模式
 
@@ -67,7 +80,8 @@ Usage 记录、原生 Codex 页面与 Codex 管理入口，不加载账号池、
 账号 auth、模型目录或额度。对同一个 Manager 热重配为 `false` 时才激活账号池，同时保留
 Codex hold 与 Usage 计数；已有账号池活动时不能反向切回 `true`。已有有效注册后重配置失败
 会保留最后有效模式的注册能力、Guard 与计数，并提供脱敏 `activation_error`；不会仅因非法
-配置而让宿主移除保护。首次注册失败仍报错。该行为已通过隔离原生检查，未等同生产切换。
+配置而让宿主移除保护。首次注册失败仍报错。隔离原生验证与本轮生产接管结果见
+[VALIDATION.md](VALIDATION.md)，构建此能力本身不自动授权后续生产切换。
 
 ## 历史接入限制（2026-10-08，非当前迁入目标）
 
@@ -125,27 +139,19 @@ bash scripts/build.sh
 bash scripts/build.sh /absolute/path/to/local-build-output
 ```
 
-`GO_BIN` 可指定已有的临时工具链。当前工作区从仓库根目录测试时可用：
+`GO_BIN` 可指定已有稳定工具链；从本独立插件仓根目录运行，替换以下路径为实际 Go：
 
 ```bash
-env GO_BIN="$PWD/.scratch/commandcode-dev/go/bin/go" \
-  GOMODCACHE="$PWD/.scratch/commandcode-dev/gomodcache" \
-  GOCACHE="$PWD/.scratch/commandcode-dev/gocache" \
-  GOPATH="$PWD/.scratch/commandcode-dev/gopath" \
-  GOPROXY="https://goproxy.cn" GOSUMDB="sum.golang.google.cn" \
-  bash tools/commandcode-cpa-plugin/scripts/test.sh
+env GO_BIN=/absolute/path/to/go bash scripts/test.sh
 ```
 
 构建时单独执行：
 
 ```bash
-env GO_BIN="$PWD/.scratch/commandcode-dev/go/bin/go" \
-  GOMODCACHE="$PWD/.scratch/commandcode-dev/gomodcache" \
-  GOCACHE="$PWD/.scratch/commandcode-dev/gocache" \
-  GOPATH="$PWD/.scratch/commandcode-dev/gopath" \
-  GOPROXY="https://goproxy.cn" GOSUMDB="sum.golang.google.cn" \
-  bash tools/commandcode-cpa-plugin/scripts/build.sh
+env GO_BIN=/absolute/path/to/go bash scripts/build.sh
 ```
+
+已有依赖缓存可通过 `GOMODCACHE`、`GOCACHE` 配置；不要沿用旧 doc_mana 嵌入目录的路径。
 
 不需要 `source` 任何 `.env` 或生产凭证。`test.sh` 依次执行 `go test ./...` 与
 `go test -race ./internal/...`，遇到失败立即停止；它们测试的是代码与测试夹具，
@@ -156,14 +162,14 @@ env GO_BIN="$PWD/.scratch/commandcode-dev/go/bin/go" \
 
 ```bash
 env PLUGIN_ID=commandcode-pool-next \
-  bash tools/commandcode-cpa-plugin/scripts/build.sh
+  bash scripts/build.sh
 ```
 
 `PLUGIN_ID` 决定插件/包文件命名及原生 URL。next/update full 使用各自独立管理地址，
 并提供原 `commandcode-pool` 管理 API 的兼容别名；guard-only 不提供这些别名，避免与
-仍在运行的旧池冲突。现用 next full 已占用原ID兼容管理地址，更新准备使用
-`commandcode-pool-update` 的独立命名空间；不能在未导入保护状态前仅提升新original优先级
-抢占旧管理地址。这一更新方式已做代码回归，隔离原生切换与生产安装仍未完成。
+仍在运行的旧池冲突。当前生产为 `commandcode-pool-update` full；本轮已完成 guard-only
+暂存、hold 移交及无重启接管，详见 [VALIDATION.md](VALIDATION.md)。这不是自动部署机制，
+后续更新仍须核对实际活动 ID、库身份及保护状态。
 ProviderID 和客户端模型命名空间仍分别为 `commandcode-pool` /
 `commandcode`，不改变客户端模型别名。构建只生成本地产物，不安装或部署。
 
@@ -175,13 +181,13 @@ Usage、账号池或执行能力，也不会接管第二份 Codex 状态。其�
 不能改用 `-v0.1.1-view.so`：加载器按最后一个 `-v` 分隔符解析，该名字会被识别成错误 ID。
 页面兼容库仅应在旧业务插件已安全移交并卸载后加载，不能覆盖正在使用的旧库。
 
-默认输出到 `dist/`，文件名前缀按 `PLUGIN_ID`，版本为 `0.1.2-local`：
+默认输出到 `dist/`，文件名前缀按 `PLUGIN_ID`，版本为 `0.1.4-local`：
 
 - `<PLUGIN_ID>.so` 与 CGO 生成的 `<PLUGIN_ID>.h`；
 - `LICENSE`、`NOTICE.md`、`THIRD_PARTY_NOTICES.md`、`UNIFIED_SCHEDULER.md`、
   `README.md`、`VALIDATION.md`、`config.example.yaml`；
 - `SHA256SUMS`，覆盖以上文件；
-- `<PLUGIN_ID>_0.1.2-local_linux_amd64.tar.gz`，含上述文件及校验清单。
+- `<PLUGIN_ID>_0.1.4-local_linux_amd64.tar.gz`，含上述文件及校验清单。
 
 输出目录的归属标记只用于安全重建，不是宿主 manifest。脚本不执行 `rm`，保留
 无关文件；首次构建遇到同名既有文件会拒绝，只有本脚本标记的自有产物可重建覆盖。
@@ -279,10 +285,14 @@ CPA 仅绑定 `127.0.0.1:18633`，插件上游仅指向 `127.0.0.1:18635`；目�
 在 CPAMP 完成初始 setup、注册 CPA 上游连接后：
 
 - 插件管理：`/management.html#/plugins`；
-- 原生菜单：在侧栏选择“CommandCode 账号池”或“Codex 429 保护”；CPAMP 按资源路径排序，
-  当前版本分别为 `/management.html#/plugin-pages/commandcode-pool/1` 和 `/0`；
-- iframe 资源：`/v0/resource/plugins/commandcode-pool/pool` 或 `/codex`；
-- 管理 API：`/v0/management/plugins/commandcode-pool/...`。
+- 原生菜单：在侧栏选择“CommandCode 账号池”或“Codex 429 保护”；CPAMP 按资源路径排序。
+  当前生产 ID 为 `commandcode-pool-update`，对应 `/management.html#/plugin-pages/commandcode-pool-update/1`
+  和 `/management.html#/plugin-pages/commandcode-pool-update/0`；
+- iframe 资源：`/v0/resource/plugins/<PLUGIN_ID>/pool` 或 `/codex`；
+- 管理 API：`/v0/management/plugins/<PLUGIN_ID>/...`。
+
+`<PLUGIN_ID>` 须替换为实际加载的插件 ID；默认构建为 `commandcode-pool`，本轮正式部署为
+`commandcode-pool-update`。
 
 账号池 iframe 第一次需要手动输入当前宿主的管理密钥：直接通过 CPA 打开时使用 CPA
 Management Key；通过真正的 CPAMP 打开时使用 **CPAMP 管理员密钥**，由 CPAMP 服务端

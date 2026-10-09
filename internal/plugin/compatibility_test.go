@@ -267,7 +267,7 @@ func TestCompatibilityViewShutdownDoesNotClearNextGuard(t *testing.T) {
 	registerCompatibilityView(t, view, compatibilityConfigYAML(t.TempDir()))
 	next := NewManager(nil)
 	next.codex.Record(pluginapi.UsageRecord{
-		Provider: "codex", AuthID: "next-manager-held-codex", Failed: true,
+		Provider: "codex", AuthType: "oauth", AuthID: "next-manager-held-codex", Failed: true,
 		Failure: pluginapi.UsageFailure{StatusCode: http.StatusTooManyRequests},
 	}, time.Now())
 	before := next.codex.Snapshot(time.Now())

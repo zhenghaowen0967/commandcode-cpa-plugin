@@ -37,9 +37,9 @@ type Ban struct {
 	BannedAt time.Time `json:"banned_at"`
 }
 
-// Record 仅记录带有效 AuthID 的 Codex 失败 429；不保存响应正文或凭据。
+// Record 仅记录宿主确认的 Codex OAuth 失败429；不保存响应正文或凭据。
 func (g *Guard) Record(record pluginapi.UsageRecord, now time.Time) bool {
-	if !strings.EqualFold(record.Provider, codexProvider) || !record.Failed || record.Failure.StatusCode != statusTooMany {
+	if !strings.EqualFold(record.Provider, codexProvider) || !strings.EqualFold(record.AuthType, "oauth") || !record.Failed || record.Failure.StatusCode != statusTooMany {
 		return false
 	}
 
@@ -96,7 +96,10 @@ func (g *Guard) Filter(candidates []pluginapi.SchedulerAuthCandidate, now time.T
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for _, candidate := range candidates {
-		if !strings.EqualFold(candidate.Provider, codexProvider) {
+		// 宿主会脱敏api_key；auth_kind保留可信类型，不能按模型或域名推断。
+		kind := candidate.Attributes["auth_kind"]
+		apiKey := strings.EqualFold(kind, "apikey") || strings.EqualFold(kind, "api_key") || kind == "" && candidate.Attributes["api_key"] != ""
+		if !strings.EqualFold(candidate.Provider, codexProvider) || apiKey {
 			available = append(available, candidate)
 			continue
 		}
