@@ -18,7 +18,7 @@ import (
 
 func holdCodex(t *testing.T, m *Manager, id string) {
 	t.Helper()
-	r := pluginapi.UsageRecord{Provider: "codex", AuthID: id, Failed: true, Failure: pluginapi.UsageFailure{StatusCode: 429, Body: "must-not-store-this-body"}, APIKey: "must-not-store-client-key"}
+	r := pluginapi.UsageRecord{Provider: "codex", AuthType: "oauth", AuthID: id, Failed: true, Failure: pluginapi.UsageFailure{StatusCode: 429, Body: "must-not-store-this-body"}, APIKey: "must-not-store-client-key"}
 	var got map[string]any
 	decodeResult(t, mustHandle(t, m, pluginabi.MethodUsageHandle, poolHookBody(t, r)), &got)
 }
@@ -242,7 +242,7 @@ func TestCodexHoldExpiresAndSurvivesReconfigure(t *testing.T) {
 		t.Fatal("reconfigure dropped active hold")
 	}
 	m.codex.ClearAll()
-	m.codex.Record(pluginapi.UsageRecord{Provider: "codex", AuthID: "expired", Failed: true, Failure: pluginapi.UsageFailure{StatusCode: 429}}, time.Now().Add(-6*time.Hour))
+	m.codex.Record(pluginapi.UsageRecord{Provider: "codex", AuthType: "oauth", AuthID: "expired", Failed: true, Failure: pluginapi.UsageFailure{StatusCode: 429}}, time.Now().Add(-6*time.Hour))
 	if got := unifiedPick(t, m, pluginapi.SchedulerAuthCandidate{ID: "expired", Provider: "codex"}); got.Handled {
 		t.Fatal("expired hold remained active")
 	}

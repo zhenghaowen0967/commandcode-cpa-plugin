@@ -389,6 +389,7 @@ func TestGuardConcurrentAccess(t *testing.T) {
 func rateLimited(authID string, headers http.Header) pluginapi.UsageRecord {
 	return pluginapi.UsageRecord{
 		Provider:        "Codex",
+		AuthType:        "oauth",
 		AuthID:          authID,
 		Failed:          true,
 		Failure:         pluginapi.UsageFailure{StatusCode: statusTooMany},

@@ -1,4 +1,57 @@
-# 本地与官方模拟联调验证记录（2026-10-08）
+# 本地与官方模拟联调验证记录
+
+## 生产上线与真实 Desktop 验收：0.1.4-local（2026-10-09 06:17 UTC）
+
+- 用户要求立即上线后复用前版已验的受控接管步骤：guard80暂存→收到原生Usage回执→hold
+  maxmerge→guard110接管→旧池暂停准入并自然排空→删除旧next→同Manager激活full→恢复
+  原账号→在新full生效后定向解绑确认BigModelID。生产stage/finish PASS，PID1948812及
+  core二进制不变，restarts=0、cancelled_streams=0，无关配置保护通过。
+- 新正式活动库 `commandcode-pool-update-v0.1.4-codexidentity.so`，metadata `0.1.4-local`，
+  SHA256 `c4ad5c7016bf537c16c434aa3ed8c58343633baae3558a104219d9c712ff2208`。
+  CPAMP18317读回只有一组两菜单，两真实账号 enabled、原Group、各cap10、inflight0。
+- 真实验收严格走 `127.0.0.1:15721/claude-desktop/v1/messages`，没有改映射、没有直连CPA
+  冒充链路：Sonnet→glm-5.3-flash、Opus→glm-5.3，各一次POST，共2次，两者HTTP200，
+  正文“验证成功”，stop_reason=end_turn；CC Switch日志按不同session精确关联同provider。
+  验收后hold为空。首次Flash的CPA usage读回尚未入库，之后仅只读补查，没有重发请求；
+  两条CPA usage均按对应session精确关联，AuthType=apikey、同auth_index=2b55b8a3088fcea7、
+  failed=0，证据为`.scratch/glm-guard-evidence/real-chain-cpa-followup-20261009.json`。
+  正常429退避与真正Codex配额保护仍按回归所验规则运行。
+- 证据：`.scratch/glm-guard-evidence/real-chain-20261009T061745Z.json`、
+  `production-after-20261009T061737Z.json`及`.scratch/glm-guard-update-*.json`。
+  生产私有备份位于core `glm-guard-migration-20261009/`（0700/文件0600），不进交付包。
+- 更新核验：现用日更只换core、不覆插件/config；当前无Home JWT输入，独立仓无Release。
+  插件商店显式安装可选择其他版本，不保证任意未来core SDK兼容，未触发日更或发布Release。
+- 验证边界：候选Go普通/race/vet、独立Go审查、同binary原生A/B均在上线前完成；接管
+  adapter新增9个纯fake测试通过。本轮未另跑完整native-hot预演，复用前版已验证步骤后
+  直接执行生产热切换并实时读回；原生A/B不冒充完整hot预演。接管adapter收尾独立Sonnet
+  审查已完成，无确认缺陷，覆盖继承白名单、hold保全、自然drain、单ID解封及前向恢复。
+  本版不包含暂停中的Anthropic消息级system提醒兼容修复。
+
+## 修复与隔离验证：0.1.4-local（2026-10-09 05:45 UTC）
+
+05:45 UTC 时阶段：代码、相关验证及独立 Sonnet 审查通过（无确认缺陷），生产与真实链路
+尚待完成；现已完成，见上方06:17 UTC上线记录。候选不包含暂停中的消息级system提醒修复。
+
+- 实证根因：现用 `0.1.3-local` 把 BigModel `AuthType=apikey` 的正常 429 当成 Codex
+  配额 429；无 `x-codex-*` 响应头时记录五小时 hold，同凭据两 GLM 均被挡。
+- 修复：Record 要求可信 `AuthType=oauth`；Filter 优先读取宿主 `auth_kind`，空 kind
+  才兼容旧宿主 `api_key` 属性。显式 OAuth 不能被 key 字段覆盖；模型、域名、客户端
+  Key 与错误正文不参与身份判别。未知身份不新建 hold，已有未知身份 hold 保守保留。
+- 回归：真 OAuth 无头仍五小时，配额窗口/重复429不缩短/导入只延长等旧保护通过；
+  两 GLM 及 API-key GPT 名称不新建 hold；历史 API-key hold 不挡请求；混合候选不通过
+  内建委托绕过真正 hold；单条 Unban 保留真实 OAuth hold。相关普通/race/vet通过。
+- 最终隔离原生 A/B（同生产 binary `a4eaa1c1…`）通过：旧 429→五小时 hold→另一 GLM
+  HTTP500；新 429仍429、hold为空、另一 GLM HTTP200；导入历史 API-key 与另一 hold
+  后仍 HTTP200、两条 hold 留存。最后报告为 `.scratch/glm-guard-native/check-1791524716073003487.json`。
+- 前轮失败完整保留：初夹具漏 `pool.auth-dir` 导致插件注册失败与管理404；补配置并重启
+  隔离实例后暴露 `api_key` 脱敏导致历史 hold 仍阻塞，已补 `auth_kind` 与回归后通过。
+- 最终候选库 SHA256：`c4ad5c7016bf537c16c434aa3ed8c58343633baae3558a104219d9c712ff2208`。
+  原生夹具只用公开合成凭据，未调用 BigModel 或真实 CC Switch。
+- 2026-10-09 05:26:33 UTC 曾为恢复独立审查链路定向解绑唯一已核 BigModel ID 一次，
+  发生在正式新 guard 部署前；未全清、未重启、未取消流。旧生产 guard 可能重新误封，
+  此操作不代表已上线修复。完整脱敏证据为 `.scratch/glm-guard-evidence/targeted-unban.json`。
+
+以下内容均为对应版本的历史证据，不覆盖本节最新状态。
 
 ## 生产迁入完成：0.1.3-local 全路由接管（2026-10-09 03:08 UTC）
 
