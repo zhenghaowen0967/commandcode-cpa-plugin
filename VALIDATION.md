@@ -1,5 +1,43 @@
 # 本地与官方模拟联调验证记录
 
+## tool_result 图片块跨路由保留：0.1.9-local（2026-10-10，已上线）
+
+- 起因：CPA 经 Claude 协议调用 `cc-deepseek-v4.1-flash` 时，历史 `tool_result.content`
+  含 image 块（如截图/读图工具）即被插件自身拒绝为 HTTP400
+  `unsupported tool_result block type "image"; tool messages carry text only`，
+  非上游错误。两条目标路由（CC、Responses）均如此。
+- 修复：共享内核 `ToolResultText` 改为 `ToolResultParts`，图片块解析为
+  http(s)/data URL；CC 路由转存到该回合全部 tool 消息之后的 user 载体消息（并行
+  工具调用时 tool 消息保持连续，载体不插入其间；DeepSeek 官方 CC 协议仅接受
+  user 消息带图，2026-10-10 已核实文档），Responses 路由以
+  `function_call_output` 输出的 `input_image` 部件原位携带（官方文档明确支持），
+  会话派生摘要纳入图片 URL。`is_error` 前缀、块顺序、未知块类型与非法图片
+  source 的描述性拒绝全部保留。
+- 验证：`go build ./...`、`go vet ./internal/...`、`go test ./...`、
+  `go test -race ./internal/adapter/... ./internal/plugin/` 与 `bash scripts/test.sh`
+  全部通过；新增 CC（含并行工具调用、首个结果带图时 tool 消息连续性回归）/
+  Responses 路由级图片保留测试及 shared 内核图片用例，旧"image 即拒绝"断言
+  已删除。首轮版本曾在 tool 消息间插入 user 载体破坏并行工具结果连续性，按审查
+  意见改为延迟追加并补上述回归后复测全绿。本机无 Go 工具链，本轮临时使用
+  用户目录 Go 1.27.2 编译测试。
+- 上线（2026-10-10 15:13–15:21 北京时间，用户授权"你去做"）：
+  - 备份：`cpa-core/toolresult-image-migration-20261010T071334Z/`（旧库
+    `31ae01a7…`、config.yaml、pool state.json 快照）；安装新库
+    `plugins/commandcode-pool-next-v0.1.9-local.so`（`10ed1af1…`），config
+    `store.version` 同步 `0.1.9-local`。
+  - 切换前核实（管理密钥经本机 CPAMP config.toml 读得）：`/codex/bans` 为空、
+    无在途请求（最近请求事件 14:59，其后仅本轮探针）。
+  - 热载不完整证据：配置/文件变更后 `/status` 仍报 `plugin_version 0.1.8-local`，
+    行为探针（图片 tool_result 请求）逐字复现旧 400，`/proc/<pid>/map_files`
+    同时映射新旧库——已加载 Manager 不被热替换；经
+    `systemctl --user restart cpa-core` 完成切换。重启后 `/status`=
+    `0.1.9-local`、`/v1/models` commandcode 87 个、pool active、bans 仍空。
+  - 真实验收：`cc-deepseek-v4.1-flash` + base64 1×1 PNG tool_result，非流
+    HTTP200（模型描述"浅粉纯色块"，证明视觉输入真实生效、非文本回显），流式含
+    `message_stop`；结束后账号 inflight=0、额度正常。
+  - 回退路径：恢复备份目录内 config.yaml 与 old-library.so 并重启即可；本轮
+    无需回退。未 commit/push/PR/Release。
+
 ## 有界回归工具与可信 TraceID：0.1.8-local（2026-10-10，候选）
 
 - 源码基线为 origin/main `0b16015cfa6c0c50d88fc5bfc515b5defaf0d796`，独立分支

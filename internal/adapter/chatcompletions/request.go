@@ -6,6 +6,7 @@ package chatcompletions
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -204,21 +205,20 @@ func claudeToChat(upstreamModel string, body []byte, ts *pluginapi.ThinkingSuppo
 	return encode(out), nil
 }
 
-// claudeResultText flattens tool_result content (string or text/
-// tool_reference blocks) into a tool-message string via the shared kernel;
-// other non-text blocks have no tool-message equivalent and are rejected
-// descriptively rather than dropped (FR-005).
-func claudeResultText(content json.RawMessage, tools []shared.ClaudeTool) (string, *errclass.Error) {
-	return shared.ToolResultText(content, tools, "tool messages carry text only")
-}
-
 // claudeUserMessages converts a user turn into Chat Completions messages:
 // text/image blocks become one user message (plain string when only
 // text), each tool_result block becomes a separate role:"tool" message
-// carrying its tool_use_id (FR-005).
+// carrying its tool_use_id. Images inside tool_result content have no
+// role:"tool" representation — CC providers accept images in user
+// messages only — so they move to user carrier messages appended after
+// all tool messages of the turn: inserting one between the tool messages
+// of parallel tool calls would break the tools-must-answer-together
+// contract, so the carriers are deferred to the end (FR-005 multimodal
+// preservation).
 func claudeUserMessages(m *shared.ClaudeMessageRecord, tools []shared.ClaudeTool) ([]ccMessage, *errclass.Error) {
 	var msgs []ccMessage
 	var parts []ccContentPart
+	var carriers []ccMessage
 	flush := func() {
 		if len(parts) == 0 {
 			return
@@ -241,7 +241,7 @@ func claudeUserMessages(m *shared.ClaudeMessageRecord, tools []shared.ClaudeTool
 		case "image":
 			parts = append(parts, ccContentPart{Type: "image_url", ImageURL: &imageURLField{URL: blk.URL}})
 		case "tool_result":
-			text, eErr := claudeResultText(blk.Result, tools)
+			text, images, eErr := shared.ToolResultParts(blk.Result, tools)
 			if eErr != nil {
 				return nil, eErr
 			}
@@ -254,11 +254,22 @@ func claudeUserMessages(m *shared.ClaudeMessageRecord, tools []shared.ClaudeTool
 			msgs = append(msgs, ccMessage{
 				Role: "tool", Content: text, ToolCallID: blk.CallID,
 			})
+			if len(images) > 0 {
+				imgParts := []ccContentPart{{
+					Type: "text",
+					Text: fmt.Sprintf("[image returned by tool %s]", blk.CallID),
+				}}
+				for _, u := range images {
+					imgParts = append(imgParts, ccContentPart{Type: "image_url", ImageURL: &imageURLField{URL: u}})
+				}
+				carriers = append(carriers, ccMessage{Role: "user", Content: imgParts})
+			}
 		default:
 			return nil, shared.UnsupportedPartType(blk.Kind, EndpointPath)
 		}
 	}
 	flush()
+	msgs = append(msgs, carriers...)
 	return msgs, nil
 }
 

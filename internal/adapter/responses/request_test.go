@@ -545,7 +545,7 @@ func TestFromClaudeMessagesErrors(t *testing.T) {
 		{"image base64 source empty", `{"max_tokens":10,"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64"}}]}]}`, errclass.ClassTranslation},
 		{"image unknown source type", `{"max_tokens":10,"messages":[{"role":"user","content":[{"type":"image","source":{"type":"s3"}}]}]}`, errclass.ClassTranslation},
 		{"malformed tool_result payload", `{"max_tokens":10,"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":42}]}]}`, errclass.ClassTranslation},
-		{"image inside tool_result rejected", `{"max_tokens":10,"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":[{"type":"image","source":{"type":"url","url":"https://x/i.png"}}]}]}]}`, errclass.ClassTranslation},
+		{"tool_result image missing source type", `{"max_tokens":10,"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":[{"type":"image","source":{}}]}]}]}`, errclass.ClassTranslation},
 		{"unsupported block type", `{"max_tokens":10,"messages":[{"role":"user","content":[{"type":"text","text":"a"},{"type":"document","source":{"type":"text"}}]}]}`, errclass.ClassUnsupported},
 		{"malformed tool_choice", `{"max_tokens":10,"tool_choice":42}`, errclass.ClassTranslation},
 		{"unknown tool_choice type", `{"max_tokens":10,"tool_choice":{"type":"blowup"}}`, errclass.ClassTranslation},
@@ -555,14 +555,6 @@ func TestFromClaudeMessagesErrors(t *testing.T) {
 			_, eErr := BuildRequest("m", "claude", []byte(tc.body), nil)
 			wantErr(t, eErr, tc.class)
 		})
-	}
-	// The tool_result image rejection names the target field, mirroring
-	// the Chat Completions route's wording style — never silent loss.
-	_, eErr := BuildRequest("m", "claude", []byte(
-		`{"max_tokens":10,"messages":[{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":[{"type":"image","source":{"type":"url","url":"https://x/i.png"}}]}]}]}`), nil)
-	if eErr == nil || eErr.Class != errclass.ClassTranslation ||
-		!strings.Contains(eErr.Message, "function_call_output carries text only") {
-		t.Fatalf("tool_result image not rejected descriptively: %+v", eErr)
 	}
 }
 
@@ -829,5 +821,35 @@ func TestFromChatCompletionsEffortNoneDeclaredForwarded(t *testing.T) {
 		[]byte(`{"messages":[],"reasoning_effort":" NONE "}`), tsLevel))
 	if r := m["reasoning"].(map[string]any); r["effort"] != "none" {
 		t.Fatalf("level-declared none = %v, want normalized forward", r)
+	}
+}
+
+// Responses accepts input_image parts inside function_call_output, so
+// images nested in a claude tool_result ride the output array after the
+// text instead of being rejected (FR-005 multimodal preservation).
+func TestFromClaudeToolResultImageParts(t *testing.T) {
+	body := `{"model":"x","max_tokens":16,"messages":[` +
+		`{"role":"assistant","content":[{"type":"tool_use","id":"tu_img","name":"Read","input":{"path":"a.png"}}]},` +
+		`{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu_img","content":[` +
+		`{"type":"text","text":"shot "},{"type":"image","source":{"type":"url","url":"https://x/i.png"}}]}]}` +
+		`]}`
+	m := decodeReq(t, mustBuild(t, "m", "claude", []byte(body), nil))
+	items := inputItems(t, m)
+	if len(items) != 2 { // function_call, function_call_output
+		t.Fatalf("items = %v", items)
+	}
+	out := itemMap(t, items, 1)
+	if out["type"] != "function_call_output" || out["call_id"] != "tu_img" {
+		t.Fatalf("output item = %v", out)
+	}
+	parts, ok := out["output"].([]any)
+	if !ok || len(parts) != 2 {
+		t.Fatalf("output parts = %v", out["output"])
+	}
+	if p := parts[0].(map[string]any); p["type"] != "input_text" || p["text"] != "shot " {
+		t.Fatalf("text part = %v", p)
+	}
+	if p := parts[1].(map[string]any); p["type"] != "input_image" || p["image_url"] != "https://x/i.png" {
+		t.Fatalf("image part = %v", p)
 	}
 }
