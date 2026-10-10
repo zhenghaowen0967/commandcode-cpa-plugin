@@ -57,10 +57,13 @@ func (m *Manager) acquireExecution(req *executorRequest) (*resolvedExecution, []
 		return nil, classEnvelope(&errclass.Error{Class: errclass.ClassAuth, Message: "selected auth provider is not commandcode"})
 	}
 	req.Headers = req.Headers.Clone()
+	traceID := poolHookTraceID(req.Headers)
 	var ids []string
 	for name, values := range req.Headers {
 		if strings.EqualFold(name, requestIDHeader) {
 			ids = append(ids, values...)
+			delete(req.Headers, name)
+		} else if strings.EqualFold(name, traceIDHeader) {
 			delete(req.Headers, name)
 		}
 	}
@@ -87,7 +90,7 @@ func (m *Manager) acquireExecution(req *executorRequest) (*resolvedExecution, []
 		m.executionDone()
 		return nil, classEnvelope(&errclass.Error{Class: errclass.ClassInvalidModel, Message: "model not in routable catalog", StatusCode: http.StatusNotFound})
 	}
-	lease, err := p.Acquire(req.AuthID, ids[0], req.Model)
+	lease, err := p.AcquireWithTrace(req.AuthID, ids[0], req.Model, traceID)
 	if err != nil {
 		m.executionDone()
 		return nil, poolAdmissionEnvelope(err)

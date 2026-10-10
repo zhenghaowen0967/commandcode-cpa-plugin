@@ -1,5 +1,49 @@
 # 本地与官方模拟联调验证记录
 
+## 有界回归工具与可信 TraceID：0.1.8-local（2026-10-10，候选）
+
+- 源码基线为 origin/main `0b16015cfa6c0c50d88fc5bfc515b5defaf0d796`，独立分支
+  `feat/request-trace-regression-20261010`，不混入插件根已有 6 项改动。生产仍为 0.1.7；
+  本轮没有生产部署、重启、真实模型 POST、commit、push、PR 或 Release。
+- 仅兼容追加可选 `trace_id` 与可复用工具，不改账号排序、额度来源、共享 cap、owner
+  自然清理或路由。三类 ID 分工、typed 来源、防伪与旧接口合同见 [TRACE.md](TRACE.md)。
+- `scripts/test.sh` 正式入口通过：初版 Python 离线 122 项；分析器最终窄修后正式离线入口
+  128 项通过，失败/错误/跳过均 0；本进程审计违规 0；
+  Go 全包普通及 `-race ./internal/...` 通过，`go vet ./...` 通过。没有 Node 缺失跳过。
+  Go1.26.8 / SDK v8.0.20 固定，未修改依赖、缓存或工具链。
+- 离线反例覆盖默认拒发、预算 bool/越界、已有 out/journal、真实身份采集调用、重启前后漂移、
+  映射库 device/inode、HTTP失败/超时不重试、预算预占与实际传输计数、秘密输出保护；
+  凭据 O_NOFOLLOW/fstat 严格0600、FIFO/符号链接拒绝；仅 CPA 父 trace 头、工具/坏块/截断失败。
+- 分析器区分集合证明与显式容量门，旧0.1.7可无 host ID 做完整集合守恒，不伪造逐条连接；
+  新 TraceID 依据关键 owner 事件支持1:N宿主关系。容量/预算/身份反例与最终增量检查记录在
+  本次交付证据中，真实探针不是并发压测。
+- Go/UI 可信追踪与 live 工具独立 Sonnet 窄审已通过；分析器最终增量独审亦通过
+  （新增 `tests/analysis_gates` 反例 6 项全绿）。第 2 轮离线入口最终为 128 项通过。
+- 公开合成原生隔离验收（独立 runtime、非生产库、公开合成 Key，单一 core
+  `44600a36…` + 候选库 `31ae01a7…`，本地 mock 上游无真实网络）：
+  - 非流/流各一次，返回 `X-CPA-TRACE-ID` 的末段 UUID 与 pool 事件 `trace_id` 精确相等，
+    对应 `pick`→`acquire`→`settle` 三条事件的 `trace_id` 一致、`attempt_id` 与
+    `request_id` 稳定且 host ≠ trace、`settle.reason=upstream_complete`；两次都自然释放。
+  - 每次请求同时带格式合法的客户端伪造 `X-Commandcode-Pool-Request-Id/Trace-Id` 头与
+    伪造 `metadata`；事件中未出现伪造值，上游 mock 未收到任何内部头（`internal_*_header_seen=false`）。
+  - 管理页面 `/pool`、`/status`、`/events` 均 HTTP200；`/status` 返回
+    `plugin_version=0.1.8-local`、`provider_id=commandcode-pool`、`account_count=2`。
+  - 结束时两账号 `inflight=0`、`cap10`，`real_model_requests=0`，`upstream_delta=2`。
+  - 浏览器实测资源页：4 条真实请求各一行、技术详情折叠、账号主层显示名称；
+    一次 `pick` 因额度快照过期被拒的请求也在页面如实显示「额度快照已过期 · quota_stale」；
+    连接后管理 Key 输入框清空、`localStorage`/`sessionStorage` 为空；375px 宽无横向溢出。
+- 新 live CLI 工具在公开隔离账号上实跑通过：真实 `/proc` 身份预检（exe/cmdline/maps
+  device+inode/监听 fd/`/status`）与每 POST 前复核均一致，一次请求 HTTP200、正文含固定标记、
+  `require_trace` 通过（响应 UUID == pick/acquire/settle）、所有者自然释放。
+  token 预算/并发/请求数上限均按最小探针（1 次/并发 1/128 token）执行，非压测。
+- 本轮首次原生探针曾以管理 404、模型 POST0 失败：此前库文件名 `commandcode-pool-next.so`
+  未带 `-v<版本>`，与新 core（8.0.23 共享内核）按 `store.version` 精确比对的命名规则不符，
+  被宿主静默跳过（`registered=false`）。改为 `commandcode-pool-next-v0.1.8-local.so` 并与配置
+  `store.version: 0.1.8-local` 配对后注册成功。该失败证据（`handoff-20261010T045055906964Z.json`）
+  保留，命名配对合同已写入 README。
+- 上述均为公开合成隔离环境与候选库自身结论；生产仍为 0.1.7，本轮**未**部署、未重启生产、
+  未发真实模型请求、未 commit/push/PR/Release。
+
 ## 工具搜索引用兼容：0.1.7-local（2026-10-10，北京时间）
 
 - 基线为已合并 0.1.6 的 main `2591614078271550f35e361908aca5a69c34e6e1`；

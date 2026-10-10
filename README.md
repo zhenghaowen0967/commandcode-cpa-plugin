@@ -1,6 +1,22 @@
 # CommandCode 原生 CPA 账号池插件
 
-## 当前源码：0.1.7-local（2026-10-10，北京时间）
+## 当前源码：0.1.8-local（2026-10-10，候选交付）
+
+本版增加可复用的有界回归工具与可信逐请求追踪，不改变账号排序、真实额度来源、
+共享硬 cap、Codex 保护或 owner 自然结算。现用生产仍为已发布的 0.1.7；构建、测试和交付
+不自动授权安装、重启、提交或发布。
+
+- 回归入口默认离线，不读取生产凭据、不请求模型。离线证据分析与有界真实探针均有独立
+  入口；真实探针必须显式授权、确认运行身份和预算，既有 journal 不覆盖、不重发。
+- 事件兼容追加 `trace_id`，连接宿主提供的入站 TraceID 与原有 `request_id`、`attempt_id`。
+  两类 ID 不互相替代；TraceID 缺失或格式异常时保持旧执行行为，不猜测客户端关联。
+- 页面仍按宿主请求一行、主层显示账号名称；TraceID 和过程记录放在技术详情。
+  客户端同名私有头先清除再由宿主字段注入，内部头不转发上游。
+
+使用与验证边界见 [REGRESSION.md](REGRESSION.md)、[TRACE.md](TRACE.md)
+和 [VALIDATION.md](VALIDATION.md)。
+
+## 历史已上线版本：0.1.7-local（2026-10-10，北京时间）
 
 本轮修复 Claude `ToolSearch` 返回的 `tool_result.content` 内 `tool_reference` 兼容。
 引用转换为工具结果文本，保留工具名称；当前请求有对应声明时保留描述和完整参数定义，
@@ -96,12 +112,12 @@ cap10；别名不新建账号、不拆分并发。请求汇总页 `/pool` 一请
 
 ## 当前交付与验证边界
 
-- CPA SDK 固定 `v8.0.20`，原生 ABI **1**、RPC schema **6**。本轮原生检查使用与生产
-  完全相同的 CPA 二进制（自报 `8.0.21`，SHA256 `a4eaa1c1…`），不是较早的 `000204…`。
-  SDK 缓存源码用于定位合同，关键行为以本轮实际二进制验证为准。
-- 本轮源码与产物为 `0.1.7-local`；0.1.5 的历史真实 CLI 与 0.1.6 配额界面验收不冒充本轮重测。
-  本轮只补工具搜索引用兼容，不修改账号池排序、cap、配额展示、六名称路由或其他渠道配置；
-  新版本验证与现场部署分别记录，见 [VALIDATION.md](VALIDATION.md)。
+- CPA SDK 固定 `v8.0.20`，原生 ABI **1**、RPC schema **6**。0.1.7 历史原生检查使用
+  CPA `8.0.21` / SHA256 `a4eaa1c1…`；本轮候选隔离目标为 `8.0.23+toolsearch` /
+  SHA256 `44600a36…`。两次身份与验证记录分开，不把 SDK 缓存当新 core 的完整源码。
+- 本轮源码与产物为 `0.1.8-local`，仅补回归工具及可信请求追踪；不修改账号池排序、cap、
+  配额展示、六名称路由或其他渠道配置。0.1.7 的真实 CLI 与 0.1.6 配额界面验收不冒充
+  本轮重测；候选验证与生产部署分别记录，见 [VALIDATION.md](VALIDATION.md)。
 - 更早的 cap=1 测试、双入口及 `0.1.1` / `0.1.2` 安装信息仅是历史验收阶段。
 - 仅支持 **Linux amd64、单个 CPA 进程、本地文件存储**。使用 Linux `syscall.Flock`
   排斥共用 auth/state 路径的另一个池；这不是跨实例协调机制。
@@ -203,9 +219,13 @@ env GO_BIN=/absolute/path/to/go bash scripts/build.sh
 
 已有依赖缓存可通过 `GOMODCACHE`、`GOCACHE` 配置；不要沿用旧 doc_mana 嵌入目录的路径。
 
-不需要 `source` 任何 `.env` 或生产凭证。`test.sh` 依次执行 `go test ./...` 与
-`go test -race ./internal/...`，遇到失败立即停止；它们测试的是代码与测试夹具，
-不是启动已安装的 CPA/CPAMP。
+不需要 `source` 任何 `.env` 或生产凭证。`test.sh` 依次执行有界工具离线回归、
+`go test ./...` 与 `go test -race ./internal/...`，遇到失败立即停止；它们测试的是代码与
+公开测试夹具，不是启动已安装的 CPA/CPAMP。离线工具仅需 Python 3 标准库：
+
+```bash
+bash scripts/regression.sh
+```
 
 `PLUGIN_ID` 默认 `commandcode-pool`，只允许 `commandcode-pool`、`commandcode-pool-next`
 或 `commandcode-pool-update`。默认构建保持原插件 ID；可用另一 ID 构建隔离候选：
@@ -232,13 +252,13 @@ Usage、账号池或执行能力，也不会接管第二份 Codex 状态。其�
 不能改用 `-v0.1.1-view.so`：加载器按最后一个 `-v` 分隔符解析，该名字会被识别成错误 ID。
 页面兼容库仅应在旧业务插件已安全移交并卸载后加载，不能覆盖正在使用的旧库。
 
-默认输出到 `dist/`，文件名前缀按 `PLUGIN_ID`，版本为 `0.1.7-local`：
+默认输出到 `dist/`，文件名前缀按 `PLUGIN_ID`，候选版本为 `0.1.8-local`：
 
 - `<PLUGIN_ID>.so` 与 CGO 生成的 `<PLUGIN_ID>.h`；
 - `LICENSE`、`NOTICE.md`、`THIRD_PARTY_NOTICES.md`、`UNIFIED_SCHEDULER.md`、
-  `README.md`、`VALIDATION.md`、`config.example.yaml`；
+  `README.md`、`VALIDATION.md`、`REGRESSION.md`、`TRACE.md`、`config.example.yaml`；
 - `SHA256SUMS`，覆盖以上文件；
-- `<PLUGIN_ID>_0.1.7-local_linux_amd64.tar.gz`，含上述文件及校验清单。
+- `<PLUGIN_ID>_0.1.8-local_linux_amd64.tar.gz`，含上述文件及校验清单。
 
 输出目录的归属标记只用于安全重建，不是宿主 manifest。脚本不执行 `rm`，保留
 无关文件；首次构建遇到同名既有文件会拒绝，只有本脚本标记的自有产物可重建覆盖。
@@ -257,6 +277,19 @@ CPA 仅绑定 `127.0.0.1:18633`，插件上游仅指向 `127.0.0.1:18635`；目�
 `commandcode-pool-next`。必须同时开启 `plugins.enabled` 和所选插件 ID 的 `enabled`。
 切换或并行加载前仍须遵守 [UNIFIED_SCHEDULER.md](UNIFIED_SCHEDULER.md) 的唯一 Scheduler
 门槛，构建 next 不代表宿主已安装或获准切换。
+
+本轮隔离实测补记一条**版本命名配对**合同（CPA 8.0.23 共享内核）：加载器把库文件名
+解析为 `<插件ID>-v<版本>.so`，并与配置 `plugins.configs.<插件ID>.store.version` 精确比较。
+两种可用配置必须成对选择：
+
+- 配置里**不写**（或留空）`store.version`：库文件可命名为 `<插件ID>.so`，按 ID 匹配即加载；
+  这是现有 0.1.x 生产库的部署方式。
+- 配置里**写了** `store.version: X`：库文件必须命名为 `<插件ID>-vX.so`，否则版本不匹配，
+  宿主静默跳过该文件。表现为管理接口 `registered=false`、`effective_enabled=false`、
+  `path=""`，且加载日志无任何报错——这是本轮首次原生验收命中并已定位的失败模式。
+
+`build.sh` 产出的 `<PLUGIN_ID>.so` 属于第一种命名；若部署端要写 `store.version`，请把库文件
+重命名为对应 `-v<版本>` 形式再放入 `plugins.dir`，两边版本字面量必须完全一致。
 
 宿主直接发现动态库，不需要额外 manifest。若后续添加 `SOURCE_METADATA.json`，
 它只能是来源证明，不能充当 CPA 加载 manifest。
@@ -361,7 +394,10 @@ CPAMP 鉴权验收。
 诊断事件；`GET events?scope=requests&after=<cursor>` 读取独立请求事件缓存，均在上述
 管理 API 前缀下，返回形状仍为 `events` 与 `next_cursor`。未知、空或重复 scope 返回400。
 页面按 request_id 一请求一行，只显示实际账号池请求；后台通知不显示，候选评分和
-过程记录可展开。只选号不会显示成功，成功指上游正常结算，不等同客户端已收到完整响应。
+过程记录可展开。0.1.8 兼容追加可选 `trace_id`：它是宿主提供的入站追踪 UUID，
+用于与响应 `X-CPA-TRACE-ID` 中的 UUID 或 usage trace 精确连接；不把它当作宿主
+生命周期 `request_id`。旧事件不带该字段仍可显示，详情会明确提示不能直接关联。
+只选号不会显示成功，成功指上游正常结算，不等同客户端已收到完整响应。
 页面不返回可恢复的 Key。
 
 Codex hold 管理提供 `GET codex/bans`、`POST codex/unban`、`POST codex/unban-all`，
