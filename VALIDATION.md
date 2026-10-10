@@ -1,5 +1,57 @@
 # 本地与官方模拟联调验证记录
 
+## 工具搜索引用兼容：0.1.7-local（2026-10-10，北京时间）
+
+- 基线为已合并 0.1.6 的 main `2591614078271550f35e361908aca5a69c34e6e1`；
+  独立工作区 `fix/tool-reference-v017-20261010`，原仓 dirty 与历史验收工作区未覆盖。
+- 旧版纯本地复现：text-only 成功，`tool_reference` 和 text+reference 混合在共享内核、
+  Claude→Chat Completions、Claude→Responses 都被拒绝；Chat 原错与用户报告逐字一致。
+- 共享转换保留引用工具名、当前声明的描述及 raw `input_schema`，未知工具明确不可用；
+  refs/defs/大整数不经浮点重编码。混合引用有分隔、原纯文本拼接不变；不提权为系统指令。
+- Chat、Responses 和会话派生统一调用；call ID、is_error、跨 user 并行结果及历史 system
+  合同保留。畸形 tool_name、null 块和其他不支持的结果块仍在 I/O 前拒绝，流/非流 owner释放。
+- 现有工具声明仍全量转发，不新增 defer_loading 筛选、工具重命名或配额/调度行为变化。
+- 受影响普通 7 包、随后 `scripts/test.sh` 全包普通与 `-race ./internal/...`、
+  `go vet ./...`、diff 检查与构建脚本语法均通过。新回归包含共享内核、双协议 parity、
+  完整工具定义、混合顺序、无提权、会话旧向量及坏输入不触 Transport/owner归零。
+- 生产预检 2026-10-09T16:07:19Z（北京时间次日）仅 GET PASS：PID1948812/core a4eaa1c1…、
+  唯一 update0.1.6/库00306c745…，两账号启用/各cap10/inflight0/quota正常、hold0、两菜单与
+  六名称归属、配置稳定。此项只证明旧生产基线，不能当候选原生或上线验收。
+- 有限真实 CLI 验收脚本 6 项纯测试通过；SHA 未固定时先阻断凭据读取，POST 前持久化
+  进度且已有 journal 不重发成功请求。只读窄审无确认阻断，session 前缀沿用历史实测合同。
+- 业务代码及接管/有限真实验收脚本的独立 Sonnet 审查均完成，无确认阻断；日志路径误判
+  已按实际位置更正。新固定身份 actor 的18项接管、10项恢复纯测试通过，生产放行后复验通过。
+- 构建回执绑定 main 基线 + 未提交 diff、108源码文件、7非标准依赖包与Go1.26.8；固定模块
+  目录、禁用自动VCS标记、构建前后输入相同。原生与生产库 SHA256 均为
+  `61de916bd82adc856179554674e0b2989c5558f8b90ea109b8324ba38ce8ca17`。
+- 同生产 core 的公开合成原生 A/B 与热接管在2026-10-09 17:08 UTC通过：旧0.1.6两协议
+  复现400/上游completion0；新0.1.7的16项正常引用、28项坏引用及后续合法请求恢复，另8项
+  历史兼容全部通过。覆盖Chat/Responses、非流/流、mixed/未知引用/is_error、畸形块；完整
+  schema/大整数/声明/callID/无提权由实际模拟上游核对。最终owner0，未调用真实模型。
+- 原生接管保全三条公开测试hold/最长reset、两账号cap10、配额字段和其他配置；本地坏输入
+  HTTP400/上游completion0/Usage0→1实证。原始探针client标签沿用旧helper值，实际请求函数
+  固定本轮公开client；安全摘要附注且原始报告保留。证据为
+  `.scratch/tool-reference-native/handoff-1791565739708672258.json`。
+- 正式2026-10-09 17:19:16 UTC（北京时间2026-10-10 01:19:16）接管PASS：自然Usage3，
+  没有额外坏输入探针；guard80→hold移交→guard110→暂停旧新准入/自然drain→删除旧实例→
+  同NEW Manager full100→恢复账号。无重启、取消流、Unban或无关路由改动；可能短暂拒绝
+  新Acquire，不宣称零拒绝。私有备份只在core `tool-reference-migration-20261010/`，0700/0600。
+- 本轮真实Claude配置网关验收17:19:29—17:19:32 UTC PASS：15721 `/v1/messages`→当前
+  Claude provider→CPA8317→CommandCode，固定`cc-deepseek-v4.1-flash`，只发送公开合成
+  ToolSearch历史（tool_reference+文本、defer_loading声明和历史system），非流/流各一次，
+  总计2次POST、没有重发或执行工具。两次HTTP200、正文“兼容成功”、end_turn；流式具有
+  message_stop，两侧日志按各自session精确关联，CPA usage failed=0。
+- 最终17:19:47 UTC纯GET读回PASS：PID1948812/core SHA `a4eaa1c1…`不变、唯一next0.1.7、
+  两菜单、两账号原形状/启用/各cap10/inflight0/eligible/quota正常、hold0、六名称归属保留。
+  5h/周重置、月余额/分母、订阅本期结束存在，月reset仍待确认，不把订阅周期误当月reset。
+  两页面HTTP200，pool资源SHA256
+  `46ad2013ea5adbb2e5968a1115eb4674d7972369c3cdaaef9921de05446d702c`与本轮原生一致。
+- 完整安全证据随同次交付报告保存：NATIVE_SUMMARY、production-handoff、real-chain和
+  production-final-readback；最终文档包重新校验10成员/9payload、内外摘要与已验库一致。
+  本轮源码保持未提交，未push/创建PR/tag/发布Release。未做生产浏览器凭据登录、大容量压测、
+  所有模型或服务端server_tool_use/tool_search_tool_result完整协议验证；本次修复限定于
+  客户端ToolSearch的tool_result.content引用，不把历史UI截图或历史真实请求冒充本轮重测。
+
 ## 配额横条与日期展示：0.1.6-local（2026-10-09）
 
 - 基线为已合并 0.1.5 的 main `404420004616695760d87c0f2d22b3dbdce9b82c`；

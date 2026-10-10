@@ -31,7 +31,7 @@ const (
 	originalPluginID  = "commandcode-pool"
 	nextPluginID      = "commandcode-pool-next"
 	updatePluginID    = "commandcode-pool-update"
-	pluginVersion     = "0.1.6-local"
+	pluginVersion     = "0.1.7-local"
 	viewPluginVersion = "0.1.1-view"
 )
 

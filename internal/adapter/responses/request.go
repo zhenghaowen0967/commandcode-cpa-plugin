@@ -360,7 +360,7 @@ func fromClaudeMessages(upstreamModel string, body []byte, ts *pluginapi.Thinkin
 				})
 			case "tool_result":
 				flush()
-				output, eErr := shared.ToolResultText(blk.Result, "function_call_output carries text only")
+				output, eErr := shared.ToolResultText(blk.Result, src.Tools, "function_call_output carries text only")
 				if eErr != nil {
 					return nil, eErr
 				}

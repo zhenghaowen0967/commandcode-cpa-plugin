@@ -176,7 +176,7 @@ func claudeToChat(upstreamModel string, body []byte, ts *pluginapi.ThinkingSuppo
 		m := &src.Messages[i]
 		switch m.Role {
 		case "user":
-			msgs, eErr := claudeUserMessages(m)
+			msgs, eErr := claudeUserMessages(m, src.Tools)
 			if eErr != nil {
 				return nil, eErr
 			}
@@ -204,19 +204,19 @@ func claudeToChat(upstreamModel string, body []byte, ts *pluginapi.ThinkingSuppo
 	return encode(out), nil
 }
 
-// claudeResultText flattens tool_result content (string or text blocks)
-// into a tool-message string via the shared kernel; non-text blocks have
-// no tool-message equivalent and are rejected descriptively rather than
-// dropped (FR-005).
-func claudeResultText(content json.RawMessage) (string, *errclass.Error) {
-	return shared.ToolResultText(content, "tool messages carry text only")
+// claudeResultText flattens tool_result content (string or text/
+// tool_reference blocks) into a tool-message string via the shared kernel;
+// other non-text blocks have no tool-message equivalent and are rejected
+// descriptively rather than dropped (FR-005).
+func claudeResultText(content json.RawMessage, tools []shared.ClaudeTool) (string, *errclass.Error) {
+	return shared.ToolResultText(content, tools, "tool messages carry text only")
 }
 
 // claudeUserMessages converts a user turn into Chat Completions messages:
 // text/image blocks become one user message (plain string when only
 // text), each tool_result block becomes a separate role:"tool" message
 // carrying its tool_use_id (FR-005).
-func claudeUserMessages(m *shared.ClaudeMessageRecord) ([]ccMessage, *errclass.Error) {
+func claudeUserMessages(m *shared.ClaudeMessageRecord, tools []shared.ClaudeTool) ([]ccMessage, *errclass.Error) {
 	var msgs []ccMessage
 	var parts []ccContentPart
 	flush := func() {
@@ -241,7 +241,7 @@ func claudeUserMessages(m *shared.ClaudeMessageRecord) ([]ccMessage, *errclass.E
 		case "image":
 			parts = append(parts, ccContentPart{Type: "image_url", ImageURL: &imageURLField{URL: blk.URL}})
 		case "tool_result":
-			text, eErr := claudeResultText(blk.Result)
+			text, eErr := claudeResultText(blk.Result, tools)
 			if eErr != nil {
 				return nil, eErr
 			}
