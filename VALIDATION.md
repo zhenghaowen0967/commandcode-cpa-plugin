@@ -49,6 +49,13 @@
     描述图片（512 token 预算下正文正常；64 token 时正文为空属已知 reasoning
     预算行为）。验证后 config 已还原 route-overrides:{} 并重启，CC 路由复验
     200，inflight 归零。备份 /tmp/config-pre-resp-test.yaml 用后可弃。
+  - 真实 Claude Code CLI 验证：本机 `claude` 2.1.284 经 15721（cc-switch）→
+    CPA 8317 → 插件 0.1.9 → CommandCode 完整链路，`--model cc-deepseek-v4.1-flash`
+    下用内置 Read 读取 /tmp/vision-test.png（32×16 左红右蓝 PNG）。CLI 曾打印
+    `unrecognized_model`（本地 CLI 不识别别名的提示，不影响透传）；池事件
+    15:36:50 确认 `commandcode/deepseek/deepseek-v4.1-flash` 实际承接请求，
+    模型回答"左半纯红、右半纯蓝"，无 400——tool_result 图片链路在真实 CLI
+    会话中端到端生效。前述 curl 模拟流量测试仅作补充，不冒充本项。
   - 已发布 GitHub Release v0.1.9-local（tar.gz + SHA256SUMS，tag 9c1a771）。
 
 ## 有界回归工具与可信 TraceID：0.1.8-local（2026-10-10，候选）
