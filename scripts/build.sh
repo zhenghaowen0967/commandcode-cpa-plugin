@@ -46,7 +46,8 @@ esac
 if [[ $plugin_role == view && $plugin_id != commandcode-pool ]]; then
   fail 'PLUGIN_ROLE=view requires PLUGIN_ID=commandcode-pool'
 fi
-version_tag=0.1.9-local
+version_tag="$(sed -n 's/^[[:space:]]*pluginVersion[[:space:]]*=[[:space:]]*"\([^"]*\)"/\1/p' "$root/internal/plugin/plugin.go" | head -1)"
+[[ -n $version_tag ]] || fail 'cannot read pluginVersion from internal/plugin/plugin.go'
 artifact_base="$plugin_id"
 if [[ $plugin_role == view ]]; then
   version_tag=0.1.1-compatview
