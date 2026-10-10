@@ -37,6 +37,19 @@
     `message_stop`；结束后账号 inflight=0、额度正常。
   - 回退路径：恢复备份目录内 config.yaml 与 old-library.so 并重启即可；本轮
     无需回退。未 commit/push/PR/Release。
+- 后续补充（同日 15:40–15:55 北京时间，用户授权执行）：
+  - 版本单源化：build.sh 的 version_tag 改为从 internal/plugin/plugin.go 的
+    pluginVersion 常量读取（PR #7，main 65067de），消除双处手工同步。
+  - 真实形态验证：模拟 Claude Code 流量（多轮历史 + 并行 tool_calls +
+    tool_reference/双图混合 tool_result），cc-deepseek-v4.1-flash 非流 HTTP200
+    （两张不同 1×1 图分别被正确描述为浅粉/浅薄荷绿）、流式含 message_stop。
+  - Responses 路由生产验证：临时 route-overrides 将
+    deepseek/deepseek-v4.1-flash 固定到 /v1/responses，重启后真实图片
+    tool_result 请求 HTTP200，id 前缀 resp_ 证实走 Responses 上游，模型正确
+    描述图片（512 token 预算下正文正常；64 token 时正文为空属已知 reasoning
+    预算行为）。验证后 config 已还原 route-overrides:{} 并重启，CC 路由复验
+    200，inflight 归零。备份 /tmp/config-pre-resp-test.yaml 用后可弃。
+  - 已发布 GitHub Release v0.1.9-local（tar.gz + SHA256SUMS，tag 9c1a771）。
 
 ## 有界回归工具与可信 TraceID：0.1.8-local（2026-10-10，候选）
 
