@@ -1,6 +1,6 @@
 // F5 route parity for tool_reference blocks: the same claude-source
 // tool_result carrying text and tool_reference blocks must render through
-// the shared ToolResultText kernel identically on the Chat Completions and
+// the shared ToolResultParts kernel identically on the Chat Completions and
 // Responses targets — same reference text, same tool-use id pairing, same
 // content order, same is_error handling — and both keep the declared tool
 // definitions untouched. Malformed references fail both legs identically.
@@ -191,7 +191,7 @@ func TestToolReferenceMalformedFailsBothTargets(t *testing.T) {
 		`{"type":"tool_reference"}`,
 		`{"type":"tool_reference","tool_name":"  "}`,
 		`{"type":"tool_reference","tool_name":7}`,
-		`{"type":"tool_reference","tool_name":"Read"},null`,
+		`{"type":"video"}`,
 		`{"type":"image","source":{}}`,
 	} {
 		body := claudeToolReferenceParityBody(blocks)
@@ -203,13 +203,14 @@ func TestToolReferenceMalformedFailsBothTargets(t *testing.T) {
 		if respErr == nil || respErr.Class != errclass.ClassTranslation {
 			t.Fatalf("responses accepted malformed %s: %+v", blocks, respErr)
 		}
-		// Each route keeps its own targetNoun wording by design; the
-		// rejection must name the malformed reference, block type, or
-		// block-array shape on both legs.
+		// Each route keeps its own wording by design; the rejection must
+		// name the malformed reference, block type, block-array shape, or
+		// invalid image source on both legs.
 		names := func(msg string) bool {
 			return strings.Contains(msg, "tool_reference") ||
 				strings.Contains(msg, "unsupported tool_result block type") ||
-				strings.Contains(msg, "must be a string or an array of blocks")
+				strings.Contains(msg, "must be a string or an array of blocks") ||
+				strings.Contains(msg, "image source")
 		}
 		if !names(chatErr.Message) || !names(respErr.Message) {
 			t.Fatalf("malformed rejection stopped naming the malformed block:\nchat     = %v\nresponses= %v", chatErr, respErr)

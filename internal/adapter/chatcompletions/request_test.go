@@ -1000,3 +1000,82 @@ func TestMalformedToolChoiceRejected(t *testing.T) {
 		}
 	}
 }
+
+// Images inside tool_result content cannot ride the role:"tool" message —
+// CC providers accept images in user messages only — so they move to a
+// user message that follows the tool message, in arrival order, while the
+// text stays in the tool message (FR-005 multimodal preservation).
+func TestClaudeToolResultImageMovesToUserMessage(t *testing.T) {
+	m := mustBuild(t, "claude",
+		`{"model":"x","max_tokens":16,"messages":[`+
+			`{"role":"assistant","content":[{"type":"tool_use","id":"tu_img","name":"Read","input":{"path":"a.png"}}]},`+
+			`{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu_img","content":[`+
+			`{"type":"text","text":"shot "},{"type":"image","source":{"type":"url","url":"https://x/i.png"}},`+
+			`{"type":"image","source":{"type":"base64","media_type":"image/png","data":"QUJD"}}]}]}`+
+			`]}`, nil)
+	msgs := m["messages"].([]any)
+	if len(msgs) != 3 { // assistant(tool_calls), tool("shot "), user(marker+2 images)
+		t.Fatalf("messages = %v", msgs)
+	}
+	tool := msgs[1].(map[string]any)
+	if tool["role"] != "tool" || tool["tool_call_id"] != "tu_img" || tool["content"] != "shot " {
+		t.Fatalf("tool message = %v", tool)
+	}
+	user := msgs[2].(map[string]any)
+	if user["role"] != "user" {
+		t.Fatalf("image carrier role = %v", user)
+	}
+	parts := user["content"].([]any)
+	if len(parts) != 3 {
+		t.Fatalf("image carrier parts = %v", parts)
+	}
+	if parts[0].(map[string]any)["text"] != "[image returned by tool tu_img]" {
+		t.Fatalf("marker = %v", parts[0])
+	}
+	if got := parts[1].(map[string]any)["image_url"].(map[string]any)["url"]; got != "https://x/i.png" {
+		t.Fatalf("url image = %v", got)
+	}
+	if got := parts[2].(map[string]any)["image_url"].(map[string]any)["url"]; got != "data:image/png;base64,QUJD" {
+		t.Fatalf("base64 image = %v", got)
+	}
+}
+
+// Parallel tool calls: the first tool_result carries an image, the second
+// is text-only. The role:"tool" messages must stay consecutive — the
+// image carrier user message is deferred until after both tool messages,
+// or CC providers reject the split tool answers with a 400.
+func TestClaudeParallelToolResultsImageCarrierDeferred(t *testing.T) {
+	m := mustBuild(t, "claude",
+		`{"model":"x","max_tokens":16,"messages":[`+
+			`{"role":"assistant","content":[`+
+			`{"type":"tool_use","id":"tu_a","name":"Read","input":{"path":"a.png"}},`+
+			`{"type":"tool_use","id":"tu_b","name":"Bash","input":{"command":"ls"}}]},`+
+			`{"role":"user","content":[`+
+			`{"type":"tool_result","tool_use_id":"tu_a","content":[`+
+			`{"type":"text","text":"img "},{"type":"image","source":{"type":"url","url":"https://x/a.png"}}]},`+
+			`{"type":"tool_result","tool_use_id":"tu_b","content":"ok"}]}`+
+			`]}`, nil)
+	msgs := m["messages"].([]any)
+	if len(msgs) != 4 { // assistant(2 tool_calls), tool, tool, user(carrier)
+		t.Fatalf("messages = %v", msgs)
+	}
+	for i, want := range []struct{ role, id, content string }{
+		{"tool", "tu_a", "img "},
+		{"tool", "tu_b", "ok"},
+	} {
+		msg := msgs[i+1].(map[string]any)
+		if msg["role"] != want.role || msg["tool_call_id"] != want.id || msg["content"] != want.content {
+			t.Fatalf("msg[%d] = %v, want %s/%s/%q", i+1, msg, want.role, want.id, want.content)
+		}
+	}
+	carrier := msgs[3].(map[string]any)
+	if carrier["role"] != "user" {
+		t.Fatalf("carrier role = %v", carrier)
+	}
+	cparts := carrier["content"].([]any)
+	if len(cparts) != 2 ||
+		cparts[0].(map[string]any)["text"] != "[image returned by tool tu_a]" ||
+		cparts[1].(map[string]any)["image_url"].(map[string]any)["url"] != "https://x/a.png" {
+		t.Fatalf("carrier parts = %v", cparts)
+	}
+}

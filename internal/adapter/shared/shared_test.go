@@ -433,25 +433,39 @@ func TestClaudeSystemText(t *testing.T) {
 	}
 }
 
-func TestToolResultText(t *testing.T) {
+func TestToolResultParts(t *testing.T) {
 	for _, raw := range []json.RawMessage{nil, json.RawMessage(`null`)} {
-		if got, _ := ToolResultText(raw, nil, "n"); got != "" {
-			t.Errorf("absent content = %q", got)
+		if got, imgs, _ := ToolResultParts(raw, nil); got != "" || imgs != nil {
+			t.Errorf("absent content = %q %v", got, imgs)
 		}
 	}
-	if got, _ := ToolResultText(json.RawMessage(`"plain"`), nil, "n"); got != "plain" {
-		t.Errorf("string content = %q", got)
+	if got, imgs, _ := ToolResultParts(json.RawMessage(`"plain"`), nil); got != "plain" || imgs != nil {
+		t.Errorf("string content = %q %v", got, imgs)
 	}
-	got, eErr := ToolResultText(json.RawMessage(`[{"type":"text","text":"a"},{"type":"text","text":"b"}]`), nil, "n")
-	if eErr != nil || got != "ab" {
-		t.Errorf("block array = %q, %v; want ab, nil", got, eErr)
+	got, imgs, eErr := ToolResultParts(json.RawMessage(`[{"type":"text","text":"a"},{"type":"text","text":"b"}]`), nil)
+	if eErr != nil || got != "ab" || imgs != nil {
+		t.Errorf("block array = %q, %v, %v; want ab, nil, nil", got, imgs, eErr)
 	}
-	if _, eErr := ToolResultText(json.RawMessage(`[{"type":"image","source":{}}]`), nil, "tool messages carry text only"); eErr == nil ||
+	// Images decode to http(s)/data URLs in arrival order without
+	// disturbing the text: boundaries involving references keep the
+	// blank-line separator.
+	got, imgs, eErr = ToolResultParts(json.RawMessage(
+		`[{"type":"text","text":"shot:"},{"type":"image","source":{"type":"url","url":"https://x/i.png"}},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"QUJD"}}]`), nil)
+	if eErr != nil || got != "shot:" || len(imgs) != 2 ||
+		imgs[0] != "https://x/i.png" || imgs[1] != "data:image/png;base64,QUJD" {
+		t.Errorf("image blocks = %q, %v, %v", got, imgs, eErr)
+	}
+	if _, _, eErr := ToolResultParts(json.RawMessage(`[{"type":"image","source":{}}]`), nil); eErr == nil ||
 		eErr.Class != errclass.ClassTranslation ||
-		eErr.Message != `unsupported tool_result block type "image"; tool messages carry text only` {
+		eErr.Message != "tool_result image source missing type" {
+		t.Errorf("sourceless image err = %+v", eErr)
+	}
+	if _, _, eErr := ToolResultParts(json.RawMessage(`[{"type":"video"}]`), nil); eErr == nil ||
+		eErr.Class != errclass.ClassTranslation ||
+		eErr.Message != `unsupported tool_result block type "video"` {
 		t.Errorf("non-text block err = %+v", eErr)
 	}
-	if _, eErr := ToolResultText(json.RawMessage(`42`), nil, "n"); eErr == nil || eErr.Class != errclass.ClassTranslation {
+	if _, _, eErr := ToolResultParts(json.RawMessage(`42`), nil); eErr == nil || eErr.Class != errclass.ClassTranslation {
 		t.Errorf("malformed content err = %+v", eErr)
 	}
 }
@@ -468,10 +482,10 @@ var toolReferenceTools = []ClaudeTool{
 	{Name: "Bash"},
 }
 
-func TestToolResultTextToolReference(t *testing.T) {
+func TestToolResultPartsToolReference(t *testing.T) {
 	t.Run("declared reference preserves name, description, and raw schema", func(t *testing.T) {
-		got, eErr := ToolResultText(json.RawMessage(
-			`[{"type":"tool_reference","tool_name":"Read"}]`), toolReferenceTools, "n")
+		got, _, eErr := ToolResultParts(json.RawMessage(
+			`[{"type":"tool_reference","tool_name":"Read"}]`), toolReferenceTools)
 		if eErr != nil {
 			t.Fatalf("declared reference rejected: %+v", eErr)
 		}
@@ -488,15 +502,15 @@ func TestToolResultTextToolReference(t *testing.T) {
 		}
 	})
 	t.Run("declared tool without description or schema keeps the name only", func(t *testing.T) {
-		got, eErr := ToolResultText(json.RawMessage(
-			`[{"type":"tool_reference","tool_name":"Bash"}]`), toolReferenceTools, "n")
+		got, _, eErr := ToolResultParts(json.RawMessage(
+			`[{"type":"tool_reference","tool_name":"Bash"}]`), toolReferenceTools)
 		if eErr != nil || got != "Tool 'Bash' is now available." {
 			t.Fatalf("bare tool reference = %q, %+v", got, eErr)
 		}
 	})
 	t.Run("undeclared reference stays unavailable without fabricating a definition", func(t *testing.T) {
-		got, eErr := ToolResultText(json.RawMessage(
-			`[{"type":"tool_reference","tool_name":"Grep"}]`), toolReferenceTools, "n")
+		got, _, eErr := ToolResultParts(json.RawMessage(
+			`[{"type":"tool_reference","tool_name":"Grep"}]`), toolReferenceTools)
 		if eErr != nil {
 			t.Fatalf("undeclared reference must not fail: %+v", eErr)
 		}
@@ -510,16 +524,16 @@ func TestToolResultTextToolReference(t *testing.T) {
 		}
 	})
 	t.Run("nil tools list renders every reference unavailable", func(t *testing.T) {
-		got, eErr := ToolResultText(json.RawMessage(
-			`[{"type":"tool_reference","tool_name":"Read"}]`), nil, "n")
+		got, _, eErr := ToolResultParts(json.RawMessage(
+			`[{"type":"tool_reference","tool_name":"Read"}]`), nil)
 		if eErr != nil || !strings.Contains(got, "is unavailable") {
 			t.Fatalf("nil tools reference = %q, %+v", got, eErr)
 		}
 	})
 	t.Run("mixed text and references keep content order", func(t *testing.T) {
-		got, eErr := ToolResultText(json.RawMessage(
+		got, _, eErr := ToolResultParts(json.RawMessage(
 			`[{"type":"text","text":"before"},{"type":"tool_reference","tool_name":"Bash"},{"type":"text","text":"after"}]`),
-			toolReferenceTools, "n")
+			toolReferenceTools)
 		if eErr != nil {
 			t.Fatalf("mixed rejected: %+v", eErr)
 		}
@@ -534,39 +548,41 @@ func TestToolResultTextToolReference(t *testing.T) {
 		}
 	})
 	t.Run("plain text keeps direct concatenation", func(t *testing.T) {
-		got, eErr := ToolResultText(json.RawMessage(
-			`[{"type":"text","text":"a"},{"type":"text","text":"b"}]`), toolReferenceTools, "n")
+		got, _, eErr := ToolResultParts(json.RawMessage(
+			`[{"type":"text","text":"a"},{"type":"text","text":"b"}]`), toolReferenceTools)
 		if eErr != nil || got != "ab" {
 			t.Fatalf("text-only = %q, %+v; want ab", got, eErr)
 		}
 	})
 	t.Run("whitespace tool_name is malformed", func(t *testing.T) {
 		for _, name := range []string{"", "   ", "\t\n"} {
-			_, eErr := ToolResultText(json.RawMessage(`[{"type":"tool_reference","tool_name":"`+
-				name+`"}]`), toolReferenceTools, "n")
+			_, _, eErr := ToolResultParts(json.RawMessage(`[{"type":"tool_reference","tool_name":"`+
+				name+`"}]`), toolReferenceTools)
 			if eErr == nil || eErr.Class != errclass.ClassTranslation {
 				t.Fatalf("tool_name %q accepted: %+v", name, eErr)
 			}
 		}
 	})
 	t.Run("non-string tool_name fails decode", func(t *testing.T) {
-		_, eErr := ToolResultText(json.RawMessage(`[{"type":"tool_reference","tool_name":42}]`), toolReferenceTools, "n")
+		_, _, eErr := ToolResultParts(json.RawMessage(`[{"type":"tool_reference","tool_name":42}]`), toolReferenceTools)
 		if eErr == nil || eErr.Class != errclass.ClassTranslation {
 			t.Fatalf("numeric tool_name accepted: %+v", eErr)
 		}
 	})
 	t.Run("null tool_reference element fails decode", func(t *testing.T) {
-		_, eErr := ToolResultText(json.RawMessage(`[{"type":"tool_reference","tool_name":"Read"},null]`), toolReferenceTools, "n")
+		_, _, eErr := ToolResultParts(json.RawMessage(`[{"type":"tool_reference","tool_name":"Read"},null]`), toolReferenceTools)
 		if eErr == nil || eErr.Class != errclass.ClassTranslation {
 			t.Fatalf("null block accepted: %+v", eErr)
 		}
 	})
-	t.Run("unsupported block type still rejected", func(t *testing.T) {
-		_, eErr := ToolResultText(json.RawMessage(
-			`[{"type":"tool_reference","tool_name":"Read"},{"type":"image","source":{}}]`), toolReferenceTools, "n")
-		if eErr == nil || eErr.Class != errclass.ClassTranslation ||
-			!strings.Contains(eErr.Message, `unsupported tool_result block type "image"`) {
-			t.Fatalf("image block after reference not rejected: %+v", eErr)
+	t.Run("image after reference keeps both", func(t *testing.T) {
+		got, imgs, eErr := ToolResultParts(json.RawMessage(
+			`[{"type":"tool_reference","tool_name":"Read"},{"type":"image","source":{"type":"url","url":"https://x/i.png"}}]`), toolReferenceTools)
+		if eErr != nil {
+			t.Fatalf("image after reference rejected: %+v", eErr)
+		}
+		if !strings.Contains(got, "Tool 'Read' is now available.") || len(imgs) != 1 || imgs[0] != "https://x/i.png" {
+			t.Fatalf("image after reference = %q, %v", got, imgs)
 		}
 	})
 }

@@ -299,10 +299,10 @@ func reasoningEffortFor(effort string, ts *pluginapi.ThinkingSupport) (string, b
 // dropped (no Responses equivalent); thinking/redacted_thinking blocks are
 // dropped because signed Anthropic chain-of-thought has no Responses input
 // representation (the thinking *control* maps to reasoning.effort); images
-// nested inside tool_result content are rejected descriptively, never
-// silently lost (FR-005). The tool_result is_error flag has no Responses
-// field and is preserved as an "[error] " marker in the output text rather
-// than lost silently.
+// nested inside tool_result content ride the function_call_output output as
+// input_image parts, in arrival order after the text. The tool_result
+// is_error flag has no Responses field and is preserved as an "[error] "
+// marker in the output text rather than lost silently.
 func fromClaudeMessages(upstreamModel string, body []byte, ts *pluginapi.ThinkingSupport) ([]byte, *errclass.Error) {
 	src, eErr := shared.DecodeClaudeMessages(body)
 	if eErr != nil {
@@ -360,12 +360,25 @@ func fromClaudeMessages(upstreamModel string, body []byte, ts *pluginapi.Thinkin
 				})
 			case "tool_result":
 				flush()
-				output, eErr := shared.ToolResultText(blk.Result, src.Tools, "function_call_output carries text only")
+				text, images, eErr := shared.ToolResultParts(blk.Result, src.Tools)
 				if eErr != nil {
 					return nil, eErr
 				}
 				if blk.IsError {
-					output = shared.ToolResultErrorPrefix + output
+					text = shared.ToolResultErrorPrefix + text
+				}
+				// Responses 允许 function_call_output 输出携带
+				// input_image 部件；图片原位保留，文本与图片顺序不变。
+				var output any = text
+				if len(images) > 0 {
+					parts := make([]any, 0, len(images)+1)
+					if text != "" {
+						parts = append(parts, map[string]any{"type": "input_text", "text": text})
+					}
+					for _, u := range images {
+						parts = append(parts, imagePart(u))
+					}
+					output = parts
 				}
 				req.Input = append(req.Input, map[string]any{
 					"type":    "function_call_output",

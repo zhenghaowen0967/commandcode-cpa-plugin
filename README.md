@@ -1,10 +1,29 @@
 # CommandCode 原生 CPA 账号池插件
 
-## 当前源码：0.1.8-local（2026-10-10，候选交付）
+## 当前已上线：0.1.9-local（2026-10-10）
+
+本轮修复 Claude 源请求里 `tool_result.content` 携带 image 块时，Chat Completions
+与 Responses 两条目标路由一律 HTTP400（`unsupported tool_result block type
+"image"`）的问题。共享内核改为 `ToolResultParts`：文本、`tool_reference` 与图片块
+分别解析为结果文本和 http(s)/data 图片 URL；CC 路由把图片转存到该回合全部 tool 消息
+之后的 user 载体消息（CC 上游仅接受 user 消息带图，且并行工具调用的 tool 消息必须
+连续，载体不插入其间），Responses 路由把图片作为
+`function_call_output` 输出的 `input_image` 部件原位携带，会话派生摘要纳入图片
+URL。`is_error` 前缀、块顺序、未知块类型（如 video）的描述性拒绝全部保留；
+非法图片 source 仍为 HTTP400。deepseek 等视觉模型由此可以真正读到工具返回的图片。
+
+2026-10-10 15:21（北京时间）已无重启冲突上线为 `commandcode-pool-next` /
+`0.1.9-local`：备份目录 `toolresult-image-migration-20261010T071334Z/`（旧库、
+config、state 快照）；配置/库文件热载不替换已加载 Manager（行为探针证明旧实例仍在
+翻译），最终经 `systemctl --user restart cpa-core` 完成切换，切换前核实 Codex bans
+为空、无在途请求。真实验收：`cc-deepseek-v4.1-flash` 带 base64 图片 tool_result
+的非流与流式请求均 HTTP200，模型真实描述图片内容（浅粉纯色 1×1 像素），结束
+inflight=0。测试与验证边界见 [VALIDATION.md](VALIDATION.md)。
+
+## 历史候选：0.1.8-local（2026-10-10）
 
 本版增加可复用的有界回归工具与可信逐请求追踪，不改变账号排序、真实额度来源、
-共享硬 cap、Codex 保护或 owner 自然结算。现用生产仍为已发布的 0.1.7；构建、测试和交付
-不自动授权安装、重启、提交或发布。
+共享硬 cap、Codex 保护或 owner 自然结算。
 
 - 回归入口默认离线，不读取生产凭据、不请求模型。离线证据分析与有界真实探针均有独立
   入口；真实探针必须显式授权、确认运行身份和预算，既有 journal 不覆盖、不重发。

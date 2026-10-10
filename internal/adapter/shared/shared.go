@@ -473,27 +473,31 @@ func FunctionCallOutputText(raw json.RawMessage) (string, *errclass.Error) {
 	return b.String(), nil
 }
 
-// ToolResultText 将字符串、文本和工具引用转换为目标协议的纯文本结果。
-// 引用只作为结果数据，不提升为系统指令或工具调用；声明中的描述和原始
-// schema 保留引用、定义与大整数。未声明工具标为不可用，其他块不静默丢弃。
-// targetNoun 用于目标协议的错误措辞。
-func ToolResultText(raw json.RawMessage, tools []ClaudeTool, targetNoun string) (string, *errclass.Error) {
+// ToolResultParts 将字符串、文本、工具引用和图片块解析为工具结果文本与
+// 图片 URL 列表。引用只作为结果数据，不提升为系统指令或工具调用；声明中的
+// 描述和原始 schema 保留引用、定义与大整数，未声明工具标为不可用。图片块按
+// OpenAI 目标词汇解析为 http(s)/data URL，由各目标路由转存到它支持的图片
+// 位置（CC 的 user 消息、Responses 的 function_call_output 部件）；其余块
+// 类型描述性拒绝，不静默丢弃。
+func ToolResultParts(raw json.RawMessage, tools []ClaudeTool) (string, []string, *errclass.Error) {
 	if !HasContent(raw) {
-		return "", nil
+		return "", nil, nil
 	}
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
-		return s, nil
+		return s, nil, nil
 	}
 	var blocks []struct {
-		Type     string `json:"type"`
-		Text     string `json:"text"`
-		ToolName string `json:"tool_name"`
+		Type     string          `json:"type"`
+		Text     string          `json:"text"`
+		ToolName string          `json:"tool_name"`
+		Source   json.RawMessage `json:"source"`
 	}
 	if err := json.Unmarshal(raw, &blocks); err != nil {
-		return "", errclass.Translation("tool_result content must be a string or an array of blocks")
+		return "", nil, errclass.Translation("tool_result content must be a string or an array of blocks")
 	}
 	var b strings.Builder
+	var images []string
 	prevRef := false
 	for i := range blocks {
 		blk := &blocks[i]
@@ -510,19 +514,42 @@ func ToolResultText(raw json.RawMessage, tools []ClaudeTool, targetNoun string) 
 			prevRef = false
 		case "tool_reference":
 			if strings.TrimSpace(blk.ToolName) == "" {
-				return "", errclass.Translation("tool_reference block missing tool_name")
+				return "", nil, errclass.Translation("tool_reference block missing tool_name")
 			}
 			if b.Len() > 0 {
 				b.WriteString("\n\n")
 			}
 			b.WriteString(toolReferenceText(blk.ToolName, tools))
 			prevRef = true
+		case "image":
+			// 图片不打断文本与引用的拼接边界：prevRef 保持不变。
+			url, eErr := toolResultImageURL(blk.Source)
+			if eErr != nil {
+				return "", nil, eErr
+			}
+			images = append(images, url)
 		default:
-			return "", errclass.Translation(fmt.Sprintf(
-				"unsupported tool_result block type %q; %s", blk.Type, targetNoun))
+			return "", nil, errclass.Translation(fmt.Sprintf(
+				"unsupported tool_result block type %q", blk.Type))
 		}
 	}
-	return b.String(), nil
+	return b.String(), images, nil
+}
+
+// toolResultImageURL 解析 tool_result 图片块的 source（url/base64）为
+// http(s)/data URL。校验与用户消息图片走同一个 ClaudeImageURL 内核，缺
+// type 或非法 source 描述性拒绝，绝不静默转成占位文本。
+func toolResultImageURL(source json.RawMessage) (string, *errclass.Error) {
+	var src struct {
+		Type      string `json:"type"`
+		URL       string `json:"url"`
+		MediaType string `json:"media_type"`
+		Data      string `json:"data"`
+	}
+	if len(source) == 0 || json.Unmarshal(source, &src) != nil || strings.TrimSpace(src.Type) == "" {
+		return "", errclass.Translation("tool_result image source missing type")
+	}
+	return ClaudeImageURL(src.Type, src.URL, src.MediaType, src.Data)
 }
 
 // toolReferenceText renders one tool_reference block into tool-result text.
