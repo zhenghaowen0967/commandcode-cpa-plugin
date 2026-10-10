@@ -96,7 +96,7 @@ func TestPoolInterceptBeforeOverwritesSpoofAndAfterOnlyTrustedSelectedAuth(t *te
 	req := pluginapi.RequestInterceptRequest{RequestID: "trusted-host-id", Headers: http.Header{requestIDHeader: {"client-spoof"}, strings.ToLower(requestIDHeader): {"another-spoof"}}, Metadata: map[string]any{"request_id": "metadata-spoof", "auth_provider": ProviderID}}
 	var got pluginapi.RequestInterceptResponse
 	decodeResult(t, mustHandle(t, m, pluginabi.MethodRequestInterceptBefore, poolHookBody(t, req)), &got)
-	if len(got.ClearHeaders) != 1 || got.ClearHeaders[0] != requestIDHeader || poolHookRequestID(got.Headers) != req.RequestID {
+	if len(got.ClearHeaders) != 2 || got.ClearHeaders[0] != requestIDHeader || poolHookRequestID(got.Headers) != req.RequestID {
 		t.Fatalf("before = %+v", got)
 	}
 	if poolHookRequestID(got.Headers) == "client-spoof" {
@@ -106,7 +106,7 @@ func TestPoolInterceptBeforeOverwritesSpoofAndAfterOnlyTrustedSelectedAuth(t *te
 		req.Metadata[selectedPoolAuthMetadataKey] = selected
 		req.Model, req.RequestedModel = "commandcode/same-model", "commandcode/same-model"
 		decodeResult(t, mustHandle(t, m, pluginabi.MethodRequestInterceptAfter, poolHookBody(t, req)), &got)
-		if got.Terminate || len(got.Headers) != 0 || len(got.ClearHeaders) != 1 {
+		if got.Terminate || len(got.Headers) != 0 || len(got.ClearHeaders) != 2 {
 			t.Fatalf("claimed non-pool auth via prefix/metadata: %+v", got)
 		}
 	}
@@ -114,7 +114,7 @@ func TestPoolInterceptBeforeOverwritesSpoofAndAfterOnlyTrustedSelectedAuth(t *te
 	req.Model, req.RequestedModel = "plain-model", "plain-model"
 	req.Metadata[selectedPoolAuthMetadataKey] = account.AuthID
 	decodeResult(t, mustHandle(t, m, pluginabi.MethodRequestInterceptAfter, poolHookBody(t, req)), &got)
-	if got.Terminate || poolHookRequestID(got.Headers) != "trusted-host-id" || len(got.ClearHeaders) != 1 {
+	if got.Terminate || poolHookRequestID(got.Headers) != "trusted-host-id" || len(got.ClearHeaders) != 2 {
 		t.Fatalf("unprefixed trusted pool = %+v", got)
 	}
 	if len(req.Headers) != 2 {

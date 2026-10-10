@@ -8,9 +8,14 @@ import (
 	"time"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
+
+	"commandcode-cpa-plugin/internal/pool"
 )
 
-const requestIDHeader = "X-Commandcode-Pool-Request-Id"
+const (
+	requestIDHeader = "X-Commandcode-Pool-Request-Id"
+	traceIDHeader   = "X-Commandcode-Pool-Trace-Id"
+)
 
 // v8.0.20 只发布 selected_auth_id，不发布 auth provider；必须查可信池记录，不能按模型猜。
 const selectedPoolAuthMetadataKey = "selected_auth_id"
@@ -58,7 +63,7 @@ func (m *Manager) pickPoolIDs(req pluginapi.SchedulerPickRequest, ids []string) 
 		return poolSchedulerReject()
 	}
 	// 调度不预占并发；占位仍由实际上游I/O入口的 Acquire 执行。
-	decision := m.pool.Pick(ids, poolHookRequestID(req.Options.Headers), req.Model)
+	decision := m.pool.PickWithTrace(ids, poolHookRequestID(req.Options.Headers), req.Model, poolHookTraceID(req.Options.Headers))
 	if decision.AuthID == "" {
 		return poolSchedulerReject()
 	}
@@ -122,9 +127,9 @@ func (m *Manager) handleInterceptBefore(request []byte) ([]byte, error) {
 	if json.Unmarshal(request, &req) != nil {
 		return ErrEnvelope("invalid_request", "malformed request interception body"), nil
 	}
-	response := pluginapi.RequestInterceptResponse{ClearHeaders: []string{requestIDHeader}}
+	response := pluginapi.RequestInterceptResponse{ClearHeaders: []string{requestIDHeader, traceIDHeader}}
 	if validPoolHookRequestID(req.RequestID) {
-		response.Headers = http.Header{requestIDHeader: {req.RequestID}}
+		response.Headers = trustedPoolHeaders(req)
 	}
 	return okEnvelope(response), nil
 }
@@ -146,12 +151,34 @@ func poolHookRequestID(headers map[string][]string) string {
 	return ids[0]
 }
 
+func trustedPoolHeaders(req pluginapi.RequestInterceptRequest) http.Header {
+	headers := http.Header{requestIDHeader: {req.RequestID}}
+	// TraceID 只作观测关联，缺失时保留旧宿主执行路径，不回退客户端值。
+	if trace := pool.NormalizeTraceID(req.TraceID); trace != "" {
+		headers[traceIDHeader] = []string{trace}
+	}
+	return headers
+}
+
+func poolHookTraceID(headers map[string][]string) string {
+	var ids []string
+	for name, values := range headers {
+		if strings.EqualFold(name, traceIDHeader) {
+			ids = append(ids, values...)
+		}
+	}
+	if len(ids) != 1 {
+		return ""
+	}
+	return pool.NormalizeTraceID(ids[0])
+}
+
 func (m *Manager) handleInterceptAfter(request []byte) ([]byte, error) {
 	var req pluginapi.RequestInterceptRequest
 	if json.Unmarshal(request, &req) != nil {
 		return ErrEnvelope("invalid_request", "malformed request interception body"), nil
 	}
-	response := pluginapi.RequestInterceptResponse{ClearHeaders: []string{requestIDHeader}}
+	response := pluginapi.RequestInterceptResponse{ClearHeaders: []string{requestIDHeader, traceIDHeader}}
 	authID, _ := req.Metadata[selectedPoolAuthMetadataKey].(string)
 	if authID == "" {
 		return okEnvelope(response), nil
@@ -173,7 +200,7 @@ func (m *Manager) handleInterceptAfter(request []byte) ([]byte, error) {
 		response.ResponseBody = []byte(`{"error":"pool request identity unavailable"}`)
 		return okEnvelope(response), nil
 	}
-	response.Headers = http.Header{requestIDHeader: {req.RequestID}}
+	response.Headers = trustedPoolHeaders(req)
 	return okEnvelope(response), nil
 }
 
@@ -186,7 +213,7 @@ func (m *Manager) handleRequestComplete(request []byte) ([]byte, error) {
 	if req.RequestID != "" {
 		m.mu.RLock()
 		if m.pool != nil {
-			m.pool.AbortRequest(req.RequestID)
+			m.pool.AbortRequestWithTrace(req.RequestID, req.TraceID)
 		}
 		m.mu.RUnlock()
 	}

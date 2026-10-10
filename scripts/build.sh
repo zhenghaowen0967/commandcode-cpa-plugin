@@ -46,14 +46,14 @@ esac
 if [[ $plugin_role == view && $plugin_id != commandcode-pool ]]; then
   fail 'PLUGIN_ROLE=view requires PLUGIN_ID=commandcode-pool'
 fi
-version_tag=0.1.7-local
+version_tag=0.1.8-local
 artifact_base="$plugin_id"
 if [[ $plugin_role == view ]]; then
   version_tag=0.1.1-compatview
   artifact_base="${plugin_id}-v${version_tag}"
 fi
 archive="${plugin_id}_${version_tag}_linux_amd64.tar.gz"
-files=("$artifact_base.so" "$artifact_base.h" LICENSE NOTICE.md THIRD_PARTY_NOTICES.md UNIFIED_SCHEDULER.md README.md VALIDATION.md config.example.yaml SHA256SUMS "$archive")
+files=("$artifact_base.so" "$artifact_base.h" LICENSE NOTICE.md THIRD_PARTY_NOTICES.md UNIFIED_SCHEDULER.md README.md VALIDATION.md REGRESSION.md TRACE.md config.example.yaml SHA256SUMS "$archive")
 marker="$out/.commandcode-pool-build"
 owned=false
 [[ ! -L $marker ]] || fail 'refusing a symlink build marker'
@@ -67,7 +67,7 @@ for name in "${files[@]}"; do
   [[ ! -e $dest || -f $dest ]] || fail "artifact is not a regular file: $name"
   [[ ! -e $dest || $owned == true ]] || fail "existing artifact is not owned by this script: $name; choose a fresh output directory"
 done
-for name in LICENSE NOTICE.md THIRD_PARTY_NOTICES.md UNIFIED_SCHEDULER.md README.md VALIDATION.md config.example.yaml; do
+for name in LICENSE NOTICE.md THIRD_PARTY_NOTICES.md UNIFIED_SCHEDULER.md README.md VALIDATION.md REGRESSION.md TRACE.md config.example.yaml; do
   [[ -f $root/$name ]] || fail "missing package input: $name"
 done
 mkdir -p -- "$out"
@@ -76,10 +76,10 @@ printf '%s\n' "$root" > "$marker"
 "$go_bin" -C "$root" build -buildvcs=false -buildmode=c-shared -trimpath \
   -ldflags "-X commandcode-cpa-plugin/internal/plugin.pluginName=$plugin_id -X commandcode-cpa-plugin/internal/plugin.pluginRole=$plugin_role" \
   -o "$out/$artifact_base.so" .
-for name in LICENSE NOTICE.md THIRD_PARTY_NOTICES.md UNIFIED_SCHEDULER.md README.md VALIDATION.md config.example.yaml; do
+for name in LICENSE NOTICE.md THIRD_PARTY_NOTICES.md UNIFIED_SCHEDULER.md README.md VALIDATION.md REGRESSION.md TRACE.md config.example.yaml; do
   cp -- "$root/$name" "$out/$name"
 done
-payload=("$artifact_base.so" "$artifact_base.h" LICENSE NOTICE.md THIRD_PARTY_NOTICES.md UNIFIED_SCHEDULER.md README.md VALIDATION.md config.example.yaml)
+payload=("$artifact_base.so" "$artifact_base.h" LICENSE NOTICE.md THIRD_PARTY_NOTICES.md UNIFIED_SCHEDULER.md README.md VALIDATION.md REGRESSION.md TRACE.md config.example.yaml)
 # 校验清单使用产物目录内的相对路径，便于搬移后核验。
 (
   cd -- "$out"

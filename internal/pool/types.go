@@ -92,6 +92,7 @@ type Event struct {
 	Sequence   uint64           `json:"sequence"`
 	At         time.Time        `json:"at"`
 	RequestID  string           `json:"request_id"`
+	TraceID    string           `json:"trace_id,omitempty"`
 	AttemptID  string           `json:"attempt_id,omitempty"`
 	Model      string           `json:"model"`
 	AccountID  string           `json:"account_id,omitempty"`

@@ -72,6 +72,7 @@ type Lease struct {
 	pool        *Pool
 	cancel      context.CancelFunc
 	requestID   string
+	traceID     string
 	model       string
 	groupID     string
 	accountID   string
@@ -474,6 +475,10 @@ func (p *Pool) reasonLocked(a *account, now time.Time) string {
 }
 
 func (p *Pool) Pick(ids []string, requestID, model string) Decision {
+	return p.PickWithTrace(ids, requestID, model, "")
+}
+
+func (p *Pool) PickWithTrace(ids []string, requestID, model, traceID string) Decision {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := time.Now()
@@ -527,7 +532,7 @@ func (p *Pool) Pick(ids []string, requestID, model string) Decision {
 		p.tie++
 		decision.AuthID, decision.AccountID, decision.Reason = selected.AuthID, selected.AccountID, "selected"
 	}
-	p.appendLocked(Event{RequestID: requestID, Model: model, AccountID: decision.AccountID, Action: "pick", Reason: decision.Reason, Candidates: decision.Candidates})
+	p.appendLocked(Event{RequestID: requestID, TraceID: traceID, Model: model, AccountID: decision.AccountID, Action: "pick", Reason: decision.Reason, Candidates: decision.Candidates})
 	return decision
 }
 func sameScore(a, b CandidateScore) bool {
@@ -535,6 +540,10 @@ func sameScore(a, b CandidateScore) bool {
 }
 
 func (p *Pool) Acquire(id, requestID, model string) (*Lease, error) {
+	return p.AcquireWithTrace(id, requestID, model, "")
+}
+
+func (p *Pool) AcquireWithTrace(id, requestID, model, traceID string) (*Lease, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if strings.TrimSpace(requestID) == "" {
@@ -561,7 +570,7 @@ func (p *Pool) Acquire(id, requestID, model string) (*Lease, error) {
 	}
 	reason := p.reasonLocked(a, time.Now())
 	if reason != "eligible" {
-		p.appendLocked(Event{RequestID: requestID, Model: model, AccountID: a.ID, GroupID: a.GroupID, Action: "acquire_rejected", Reason: reason})
+		p.appendLocked(Event{RequestID: requestID, TraceID: traceID, Model: model, AccountID: a.ID, GroupID: a.GroupID, Action: "acquire_rejected", Reason: reason})
 		switch reason {
 		case "disabled", "deleted", "identity_conflict":
 			return nil, ErrDisabled
@@ -575,10 +584,10 @@ func (p *Pool) Acquire(id, requestID, model string) (*Lease, error) {
 	}
 	p.nextAttempt++
 	ctx, cancel := context.WithCancel(context.Background())
-	lease := &Lease{Credential: p.credentialLocked(a), AttemptID: attemptID(p.nextAttempt), Context: ctx, pool: p, cancel: cancel, requestID: requestID, model: model, groupID: a.GroupID, accountID: a.ID}
+	lease := &Lease{Credential: p.credentialLocked(a), AttemptID: attemptID(p.nextAttempt), Context: ctx, pool: p, cancel: cancel, requestID: requestID, traceID: NormalizeTraceID(traceID), model: model, groupID: a.GroupID, accountID: a.ID}
 	p.attempts[lease.AttemptID] = lease
 	p.inflight[a.GroupID]++
-	p.appendLocked(Event{RequestID: requestID, AttemptID: lease.AttemptID, Model: model, AccountID: a.ID, GroupID: a.GroupID, Action: "acquire", Reason: "acquired"})
+	p.appendLocked(Event{RequestID: requestID, TraceID: lease.traceID, AttemptID: lease.AttemptID, Model: model, AccountID: a.ID, GroupID: a.GroupID, Action: "acquire", Reason: "acquired"})
 	return lease, nil
 }
 func (l *Lease) Cancel() {
@@ -597,7 +606,7 @@ func (l *Lease) Record(reason string) {
 		return
 	}
 	l.quarantined = true
-	p.appendLocked(Event{RequestID: l.requestID, AttemptID: l.AttemptID, Model: l.model, AccountID: l.accountID, GroupID: l.groupID, Action: "quarantined", Reason: safeOwnerReason(reason, "cleanup_unconfirmed")})
+	p.appendLocked(Event{RequestID: l.requestID, TraceID: l.traceID, AttemptID: l.AttemptID, Model: l.model, AccountID: l.accountID, GroupID: l.groupID, Action: "quarantined", Reason: safeOwnerReason(reason, "cleanup_unconfirmed")})
 }
 func (l *Lease) Settle(reason string) {
 	if l == nil || l.pool == nil {
@@ -614,7 +623,7 @@ func (l *Lease) Settle(reason string) {
 	delete(p.attempts, l.AttemptID)
 	p.inflight[l.groupID]--
 	p.trimTerminalLocked()
-	p.appendLocked(Event{RequestID: l.requestID, AttemptID: l.AttemptID, Model: l.model, AccountID: l.accountID, GroupID: l.groupID, Action: "settle", Reason: safeOwnerReason(reason, "owner_finished")})
+	p.appendLocked(Event{RequestID: l.requestID, TraceID: l.traceID, AttemptID: l.AttemptID, Model: l.model, AccountID: l.accountID, GroupID: l.groupID, Action: "settle", Reason: safeOwnerReason(reason, "owner_finished")})
 	if p.closed && len(p.attempts) == 0 {
 		p.releaseLocksLocked()
 	}
@@ -641,6 +650,10 @@ func safeOwnerReason(reason, fallback string) string {
 // Active requests are not evicted; unrelated completed IDs retain a recent
 // bounded history to reject late RPC attempts without an unbounded registry.
 func (p *Pool) AbortRequest(id string) {
+	p.AbortRequestWithTrace(id, "")
+}
+
+func (p *Pool) AbortRequestWithTrace(id, traceID string) {
 	if strings.TrimSpace(id) == "" {
 		return
 	}
@@ -656,7 +669,7 @@ func (p *Pool) AbortRequest(id string) {
 		}
 	}
 	p.trimTerminalLocked()
-	p.appendLocked(Event{RequestID: id, Action: "request_aborted", Reason: "request_finished"})
+	p.appendLocked(Event{RequestID: id, TraceID: traceID, Action: "request_aborted", Reason: "request_finished"})
 }
 func (p *Pool) trimTerminalLocked() {
 	const limit = 4096
@@ -761,6 +774,7 @@ func (p *Pool) appendLocked(e Event) {
 	e.Sequence = p.sequence
 	e.At = time.Now()
 	e.RequestID = p.redactLocked(e.RequestID)
+	e.TraceID = NormalizeTraceID(p.redactLocked(NormalizeTraceID(e.TraceID)))
 	e.Model = p.redactLocked(e.Model)
 	e.Reason = p.redactLocked(e.Reason)
 	e.AccountID = p.redactLocked(e.AccountID)
@@ -798,6 +812,7 @@ func (p *Pool) eventsAfterLocked(events []Event, after uint64) []Event {
 		if e.Sequence > after {
 			copy := e
 			copy.RequestID = p.redactLocked(copy.RequestID)
+			copy.TraceID = NormalizeTraceID(p.redactLocked(copy.TraceID))
 			copy.Model = p.redactLocked(copy.Model)
 			copy.Reason = p.redactLocked(copy.Reason)
 			copy.AccountID = p.redactLocked(copy.AccountID)

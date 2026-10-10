@@ -16,5 +16,6 @@ if [[ $version =~ ^go([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
 else
   fail "unsupported Go version: $version; use a stable Go 1.26.7+ toolchain"
 fi
+bash "$root/scripts/regression.sh" offline
 "$go_bin" -C "$root" test ./...
 "$go_bin" -C "$root" test -race ./internal/...

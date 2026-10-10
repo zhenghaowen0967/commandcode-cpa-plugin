@@ -458,9 +458,12 @@
       if (attemptCount > 1) explanation += '；记录到 ' + attemptCount + ' 次实际尝试';
       article.append(head, meta, el('p', explanation, 'event-reason'));
       const details = el('details'); details.dataset.request = text(first.request_id); details.open = expanded.has(text(first.request_id)); details.append(el('summary', '技术详情 · 候选评分与 ' + group.length + ' 条过程记录'));
-      details.append(el('p', 'request_id ' + text(first.request_id), 'mono tiny wrap'));
+      details.append(el('p', '宿主 request_id ' + text(first.request_id), 'mono tiny wrap'));
+      const traces = [...new Set(group.map(event => event.trace_id).filter(trace => typeof trace === 'string' && trace))];
+      const traceText = traces.length === 1 ? '入站 TraceID ' + traces[0] : traces.length ? '关联信息不一致：同一宿主请求出现多个 TraceID' : '入站 TraceID 未提供，不能直接关联客户端追踪记录';
+      details.append(el('p', traceText, 'mono tiny wrap'));
       for (const event of group) {
-        details.append(el('p', '#' + text(event.sequence) + ' ' + timestamp(event.at) + ' · ' + text(event.action) + ' · ' + text(event.reason) + ' · account_id ' + text(event.account_id) + ' · group_id ' + text(event.group_id) + ' · attempt_id ' + text(event.attempt_id), 'mono tiny wrap'));
+        details.append(el('p', '#' + text(event.sequence) + ' ' + timestamp(event.at) + ' · ' + text(event.action) + ' · ' + text(event.reason) + ' · account_id ' + text(event.account_id) + ' · group_id ' + text(event.group_id) + ' · attempt_id ' + text(event.attempt_id) + ' · trace_id ' + text(event.trace_id), 'mono tiny wrap'));
         const candidates = Array.isArray(event.candidates) ? event.candidates : [];
         if (!candidates.length) continue;
         const scroll = el('div', undefined, 'table-scroll'); scroll.tabIndex = 0; scroll.setAttribute('aria-label', '候选评分表，可横向滚动');
