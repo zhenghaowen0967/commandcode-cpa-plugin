@@ -11,6 +11,9 @@ type Config struct {
 	QuotaMaxAge  time.Duration
 	EventLimit   int
 	DefaultLimit int
+	// Strategy selects how eligible accounts are ordered at Pick time. A blank
+	// or unknown value falls back to StrategyHeadroomFirst.
+	Strategy string
 }
 
 type AccountInput struct {
@@ -50,6 +53,7 @@ type Quota struct {
 	Plan             string    `json:"plan,omitempty"`
 	Identity         string    `json:"identity,omitempty"`
 	// Display-only metadata; Month is not a rate-limit window or routing input.
+	// MonthlyCredits itself is a routing input only for the expiry-first strategy.
 	Month                 *Window    `json:"month,omitempty"`
 	MonthlyCredits        *float64   `json:"monthly_credits,omitempty"`
 	SubscriptionPeriodEnd *time.Time `json:"subscription_period_end,omitempty"`
@@ -85,6 +89,7 @@ type Decision struct {
 	AuthID     string           `json:"auth_id,omitempty"`
 	AccountID  string           `json:"account_id,omitempty"`
 	Reason     string           `json:"reason"`
+	Strategy   string           `json:"strategy,omitempty"`
 	Candidates []CandidateScore `json:"candidates"`
 }
 
@@ -99,5 +104,6 @@ type Event struct {
 	GroupID    string           `json:"group_id,omitempty"`
 	Action     string           `json:"action"`
 	Reason     string           `json:"reason"`
+	Strategy   string           `json:"strategy,omitempty"`
 	Candidates []CandidateScore `json:"candidates,omitempty"`
 }

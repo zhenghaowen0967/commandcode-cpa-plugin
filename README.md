@@ -323,6 +323,7 @@ CPA 仅绑定 `127.0.0.1:18633`，插件上游仅指向 `127.0.0.1:18635`；目�
   不得提交、公开、打包进交付物或粘贴到日志。备份也属于敏感数据操作。
 - `pool.auth-dir`、`pool.state-path`、`pool.max-concurrency`（默认 cap）及
   `pool.quota-max-age` 不能在线更换，需要获准重启 CPA。
+- `pool.strategy`（调度策略）可热载：重配置后立即对后续选号生效，已在途的请求不受影响。
 - 单个账号的名称、启用状态和并发 cap 可通过管理页面/API 热修改；同一 group 的
   cap 是共享限制，更新会保持组内一致。降低 cap 不会提前释放已经在途的请求。
 - 旧组有任何 Key 在途时不能迁组；已知厂商身份有 owner 时不能替换身份。
@@ -348,8 +349,11 @@ CPA 仅绑定 `127.0.0.1:18633`，插件上游仅指向 `127.0.0.1:18635`；目�
 4. 额度缺失、刷新失败、超过 `pool.quota-max-age`（默认 **5m**）、已耗尽或账号禁用时，
    按 **fail-closed** 拒绝准入，不使用过期额度继续放行。后台刷新默认 **1m**。
    模型目录的 stale-while-unavailable 不改变额度的 fail-closed 规则。
-5. 在可准入候选中按 headroom、剩余额度等信息选择，并在实际执行前原子 Acquire；
+5. 在可准入候选中按 `pool.strategy` 选号，并在实际执行前原子 Acquire；
    调度推荐不是已经占到槽位，真正的上游执行不得绕过原子准入。
+   策略（默认 `headroom-first`）：`headroom-first` 余量最大优先、`round-robin` 全候选轮询、
+   `fill-first` 固定顺序用尽再换、`expiry-first` 到期最早且月额度 > 0 者优先。
+   所有策略只重排可准入候选，不改变 fail-closed 准入判定。
 
 批量导入请求结构为：
 

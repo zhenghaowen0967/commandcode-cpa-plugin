@@ -35,3 +35,23 @@ func TestPoolConfigurationValidation(t *testing.T) {
 		t.Fatalf("pool fields not loaded: %+v", c.Pool)
 	}
 }
+
+func TestPoolStrategyConfiguration(t *testing.T) {
+	c, err := Load(nil)
+	if err != nil || c.Pool.Strategy != DefaultStrategy {
+		t.Fatalf("unset strategy = %q (err=%v), want default %q", c.Pool.Strategy, err, DefaultStrategy)
+	}
+	for _, strategy := range []string{"headroom-first", "round-robin", "fill-first", "expiry-first"} {
+		c, err := Load([]byte("pool:\n  strategy: " + strategy + "\n"))
+		if err != nil || c.Pool.Strategy != strategy {
+			t.Fatalf("strategy %q = %q (err=%v)", strategy, c.Pool.Strategy, err)
+		}
+	}
+	// A blank value falls back to the default rather than failing.
+	if c, err := Load([]byte("pool:\n  strategy: \"  \"\n")); err != nil || c.Pool.Strategy != DefaultStrategy {
+		t.Fatalf("blank strategy = %q (err=%v), want default", c.Pool.Strategy, err)
+	}
+	if _, err := Load([]byte("pool:\n  strategy: bogus\n")); err == nil {
+		t.Fatal("accepted an unknown pool strategy")
+	}
+}

@@ -15,6 +15,8 @@ import (
 	"unicode"
 
 	"gopkg.in/yaml.v3"
+
+	"commandcode-cpa-plugin/internal/pool"
 )
 
 // Defaults (spec 04 §2/§4).
@@ -24,6 +26,9 @@ const (
 	DefaultRefreshInterval  = 15 * time.Minute
 	DefaultRequestTimeout   = 5 * time.Minute
 	DefaultMaxResponseBytes = int64(67108864) // 64 MiB
+
+	// DefaultStrategy is the scheduling strategy used when pool.strategy is unset.
+	DefaultStrategy = pool.StrategyHeadroomFirst
 )
 
 type ModelPrefix struct {
@@ -57,6 +62,7 @@ type PoolConfig struct {
 	DefaultLimit         int
 	QuotaMaxAge          time.Duration
 	QuotaRefreshInterval time.Duration
+	Strategy             string
 }
 
 type Config struct {
@@ -85,6 +91,7 @@ type rawPool struct {
 	DefaultLimit         *int    `yaml:"max-concurrency"`
 	QuotaMaxAge          *string `yaml:"quota-max-age"`
 	QuotaRefreshInterval *string `yaml:"quota-refresh-interval"`
+	Strategy             *string `yaml:"strategy"`
 }
 
 type rawConfig struct {
@@ -163,11 +170,20 @@ func Load(yamlBytes []byte) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	strategy := DefaultStrategy
+	if raw.Pool.Strategy != nil {
+		if s := strings.TrimSpace(*raw.Pool.Strategy); s != "" {
+			if !pool.ValidStrategy(s) {
+				return Config{}, fmt.Errorf("pool.strategy: unknown strategy %q", s)
+			}
+			strategy = s
+		}
+	}
 	c := Config{
 		Pool: PoolConfig{
 			AuthDir: strings.TrimSpace(raw.Pool.AuthDir), StatePath: strings.TrimSpace(raw.Pool.StatePath),
 			DefaultLimit: orDefault(raw.Pool.DefaultLimit, 2), QuotaMaxAge: quotaMaxAge,
-			QuotaRefreshInterval: quotaRefresh,
+			QuotaRefreshInterval: quotaRefresh, Strategy: strategy,
 		},
 		GuardOnly: raw.GuardOnly,
 		BaseURL:   orDefault(raw.BaseURL, DefaultBaseURL),
