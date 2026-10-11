@@ -1,5 +1,50 @@
 # 本地与官方模拟联调验证记录
 
+## 可配置调度策略与页面切换：0.1.10-local（2026-10-11，已上线）
+
+- 变更：新增 `pool.strategy`（`headroom-first` 默认 / `round-robin` / `fill-first` /
+  `expiry-first`），可热载；策略只重排 eligible 候选，准入判定、Codex hold 过滤、混合
+  provider 交宿主、调度不预占与不委托内建 picker 均不变；`/status` 报实际策略、pick 事件
+  带策略名；`CandidateScore` 保持不含展示字段。账号池页面新增“调度策略”面板。
+- 测试：`bash scripts/test.sh` 全绿（离线回归 + `go test ./...` + `go test -race ./internal/...`）。
+  新增：策略行为（轮询/用尽再换/到期优先，含“月额度为 0 不优先”回归）、配置校验、生命周期
+  热载与回退、**策略泄漏回归**（失败重配置不得改动运行中的池，已验证修复前红/修复后绿）、
+  **轮询公平性回归**（`{A,B}/{A}/{A,B}` 交替序列，已验证修复前红/修复后绿）、页面契约测试与
+  mock-DOM 行为测试（写入路径与 body、读回确认、重载滞后、写入失败、断开清理）。真实浏览器
+  （headless Chromium + 桩 fetch）验证页面：刀闸渲染 → 点击写入 → 未确认时显示“已提交…等待
+  CPAMP 重载确认” → 状态更新并同步后翻为“当前生效”。
+- 上线（2026-10-11 15:02–15:05 北京时间，用户授权“审阅合并然后上线”）：
+  - 代码：PR #10 合入 main（`6159f6f`），含版本单源升级 `pluginVersion = 0.1.10-local`。
+  - 构建：从 `origin/main` 建发布 worktree，`PLUGIN_ID=commandcode-pool-next bash scripts/build.sh`
+    产出 `commandcode-pool-next.so`，SHA256 `2061b2484dbfb0ddd04b25b426f680750b94a08b696187628c0097df08cb5899`；
+    产物内已含四个策略名、`调度策略`、`/v8/management/config/plugins/configs/` 与 `0.1.10-local`。
+  - 备份：`cpa-core/strategy-scheduling-migration-20261011T070249Z/`（旧库
+    `commandcode-pool-next-v0.1.9-local.so`、config.yaml、pool state.json，`SHA256SUMS` 校验 OK，
+    目录 0700 / 文件 0600）。
+  - 变更：新库放入 `plugins/commandcode-pool-next-v0.1.10-local.so`（与构建产物 SHA 一致），
+    config `store.version` 由 `0.1.9-local` 改为 `0.1.10-local`（该串全文件唯一），旧库
+    **移出** `plugins/` 到备份目录，避免同 ID 双库。
+  - 切换前核实：`/codex/bans` = `[]`、`pool_active=true`、`guard_only=false`、
+    `activation_error=""`、三账号 inflight 均为 0。
+  - 切换：`systemctl --user restart cpa-core`（PID 381990 → 1510470），2 秒内 API 就绪。
+  - 重启后读回：`/v0/management/plugins` 中该插件
+    `path=plugins/commandcode-pool-next-v0.1.10-local.so`、`registered=true`、
+    `effective_enabled=true`；`/status` = `plugin_version 0.1.10-local`、
+    `scheduler_policy headroom-first`、`account_count 3`、`scope single_process`；
+    三账号仍启用（cap 10、inflight 0）；bans 仍空；`/codex/bans` 的
+    `activation_error` 为空；账号池资源页含“调度策略”面板与 `/v8` 写路径。
+- 路由核实（可复用的经验）：宿主暴露 `/v8/management/config`；深路径
+  `…/plugins/configs/<ID>/pool/strategy` 的 **GET 在键不存在时返回 404**，PUT 会自动创建中间
+  映射节点。实测 `PUT` body `"headroom-first"` → `200 {"config-version":8,"status":"ok"}`，
+  随后深路径 GET `200 "headroom-first"`，`/status` 同步一致，写前后 inflight 均为 0。
+  本次只写入与当时生效值相同的策略（行为等价，仅把键显式化）；**未**在生产切换到其他策略。
+- 回退路径：把备份目录中的 `commandcode-pool-next-v0.1.9-local.so` 放回 `plugins/`、
+  config.yaml 恢复（`store.version: "0.1.9-local"`）、确认新库已移出 `plugins/`，然后
+  `systemctl --user restart cpa-core`，再按上文读回项核对。本轮无需回退。
+- 边界：`expiry-first` 的到期信号是启发式（`currentPeriodEnd` 只是本期结束，月额度是否重置
+  未经上游确认）；本次上线未做真实模型请求验收，也未做跨实例/高并发压测；页面切换依赖宿主
+  `/v8/management/config` 深路径写与异步重载，若宿主缺失该路由，页面会显示明确错误而非静默失败。
+
 ## tool_result 图片块跨路由保留：0.1.9-local（2026-10-10，已上线）
 
 - 起因：CPA 经 Claude 协议调用 `cc-deepseek-v4.1-flash` 时，历史 `tool_result.content`
