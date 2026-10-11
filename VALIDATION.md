@@ -1,5 +1,37 @@
 # 本地与官方模拟联调验证记录
 
+## 面板入口与配置写入：0.1.11-local 已上线、0.1.13-local 待部署（2026-10-11）
+
+- 现象：在用户实际使用的 CPAMP 面板（第三方 `cpa-manager-plus`，docker host 网络，
+  `0.0.0.0:18317`）里点击策略刀闸报 `管理 API 返回 HTTP 404`；CPA 本体（`127.0.0.1:8317`）
+  日志中**没有任何该写入请求**。
+- 定位（对照探针，均为 read-only 或同值写入）：
+  - `PUT /v8/management/config/plugins/configs/commandcode-pool-next/pool/strategy`：
+    直连 8317 → 200；经 18317 → 404（面板层只分发 `/v0/management/*`）。
+  - `POST /v0/management/plugins/commandcode-pool-next/strategy`：直连 8317 → **404 空响应体**；
+    `POST .../quota/refresh` → 200 ⇒ 宿主只转发**插件在 `registerManagement` 中声明过**的管理路由。
+- 代码修复（本仓库）：PR #12（页面两段式写入 + 复用 `mutation()` 做 generation/`alive` 隔离）、
+  PR #13（在注册路由中声明 `POST /strategy`，guard-only 切片 7→8）、PR #14（回退**仅限**
+  404/405；401/403 交 `mutation` 断开会话，超时与 5xx 保留失败，避免误报“仅本进程”）。
+- 面板侧修复（属 CPAMP，非本仓库；在独立 worktree/分支，未推送）：放行
+  `/v8/management/config` 前缀并转发（GET/PUT/PATCH/DELETE；管理密钥验证通过用已保存的 CPA
+  密钥，否则转发调用者 Authorization）；以**运行中的镜像**为基础重建二进制，并把**线上那份
+  web 重新嵌入**（`sha256 7bdb0ca91a8083c8…`，6,437,345 B）以避免 UI 回退；镜像
+  `cpamp:1.14.1-v8config-20261011`。部署后经 18317 实测：`PUT .../pool/strategy` → 200、
+  深路径读回一致、`/v0/management/plugins/*` 与账号池资源页 200、`/health` 200、
+  无管理密钥写入 → 401。
+- 新发现（宿主配置层不校验插件枚举值）：经 `/v8` 写入非法策略（`bogus`）会被宿主接受（200）
+  并落盘，随后**插件激活会因非法配置失败**。本次已立即读回并恢复为 `headroom-first`
+  （全文件核对无 `bogus`，无新增注册失败）。页面只提供合法值，但任意写入方都可能污染配置，
+  后续可考虑让插件在配置非法时回退默认值并记录，而非整体拒绝激活（**待用户决策**）。
+- 部署状态：`0.1.11-local` 已上线（见 README，备份目录 `v0-stategy-path-migration-20261011T073307Z/`）；
+  `0.1.13-local` 已构建（SHA256 `ed789368…`）但**未部署**：两次排空门槛（120s 与 180s）都未等到
+  `inflight==0`（用户流量持续 1–4 个在途），按规范未在有在途请求时重启。
+- 未验证/降级说明：① 15:33 的 0.1.10→0.1.11 切换在 `inflight=2` 时重启，只证明存在中断风险，
+  **未确认**那两个请求被中断（池事件是进程内存，重启后无法回溯）；② “热重载注册失败窗口内
+  Scheduler/Codex 保护失效”属推断，未做行为探针；③ 面板补丁的 `GET /v8/management/config`
+  根路径（无尾部路径）未分发（页面只用深路径写入），属已知范围边界。
+
 ## 可配置调度策略与页面切换：0.1.10-local（2026-10-11，已上线）
 
 - 变更：新增 `pool.strategy`（`headroom-first` 默认 / `round-robin` / `fill-first` /

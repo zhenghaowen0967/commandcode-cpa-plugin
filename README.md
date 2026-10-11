@@ -1,6 +1,41 @@
 # CommandCode 原生 CPA 账号池插件
 
-## 当前已上线：0.1.10-local（2026-10-11）
+## 当前已上线：0.1.11-local（2026-10-11）
+
+本轮修复账号池页面的策略切换在**只转发 `/v0` 的第三方面板**（本机 `cpa-manager-plus`，
+`127.0.0.1:18317`）下不可用的问题，并加强页面的并发隔离。
+
+- 面板入口原只分发 `/v0/management/*`，而页面持久化策略走 CPA 配置文档 API
+  `/v8/management/config/...`，因此在该面板内点击必然 404。**面板侧改动（属 CPAMP，不在本仓库）**：
+  放行该前缀（服务端转发，仅 GET/PUT/PATCH/DELETE，管理密钥验证通过时用已保存的 CPA 密钥，
+  否则转发调用者的 Authorization）；部署后经 18317 实测 `PUT .../pool/strategy` → 200，深路径
+  读回一致。本仓库 0.1.11 只含页面侧改动。
+- 页面 `setStrategy` 改用既有的 `mutation()` 隔离（generation/`alive` 校验、忽略
+  `AbortError`、`mutating` 只由同一代会话复位），断开/重连时过期任务不再回写 UI。
+- **已知缺陷（0.1.13-local 已修复，待排空窗口部署）**：本版把配置写入的**任何**异常都
+  当作“入口缺路由”并回退到插件接口，会把 401/403、超时、5xx 误报成“仅本进程”；且插件
+  侧 `POST /v0/management/plugins/<id>/strategy` 在 0.1.11 中**未在注册时声明**，宿主因此
+  对该路径直接 404（空响应体），回退实际不可用。0.1.13 修正为仅在 404/405 时回退并声明
+  该路由。
+
+2026-10-11 15:33（北京时间）经用户授权上线为 `commandcode-pool-next` / `0.1.11-local`
+（PR #12，main `c30d6f8`）：备份目录 `cpa-core/v0-stategy-path-migration-20261011T073307Z/`
+（旧库 0.1.10、config、state 快照与 SHA256SUMS）；安装 `plugins/commandcode-pool-next-v0.1.11-local.so`
+并同步 `store.version`。切换前核实 bans 为空；**当时 inflight=2，重启前未等待排空**（风险：可能
+中断在途请求；池事件为进程内存，无法回溯这两个请求的终态，故仅记为风险，未确认发生中断）。
+读回：`registered/effective_enabled=true`、`/status` 报 `plugin_version 0.1.11-local`、
+`scheduler_policy headroom-first`。
+
+> 部署顺序教训（后续版本遵守）：修改 `store.version` 会立即触发宿主热重载并尝试重注册；
+> 若旧实例仍在运行（持 pool 状态文件锁），重注册会失败并留下
+> `plugin.register failed: pool state could not be loaded` 与
+> `returned invalid metadata or no capabilities`（**已观测**；该窗口内保护能力是否失效未做
+> 行为探针，**未验证**）。因此正确顺序是：① 等 inflight==0；② `systemctl --user stop cpa-core`；
+> ③ 停服状态下换 `.so` 并改 `store.version`（版本号与文件名必须完全配对）；④ `start`；
+> ⑤ 读回 version/策略/账号/bans，并用 `POST /v0/management/plugins/<id>/strategy` 非法值探针
+> （期望插件 JSON 400）确认路由已声明生效。
+
+## 历史已上线：0.1.10-local（2026-10-11）
 
 本轮新增**可热载的账号池调度策略**，并在账号池页面提供切换入口。
 
