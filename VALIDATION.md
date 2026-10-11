@@ -1,5 +1,32 @@
 # 本地与官方模拟联调验证记录
 
+## 粘性会话与满表改绑修复：0.1.15-local（2026-10-11，已上线）
+
+- 功能：`pool.sticky-ttl`（默认关闭）开启后，同一会话在窗口内固定使用同一账号。键来自宿主
+  选号请求 `Options.Metadata["canonical_session_id"]`；绑定账号失去资格立即回退当前策略并改绑。
+  `Decision`/`Event` 新增 `sticky`（off/miss/hit/fallback，不记录键本身）；`/status` 新增
+  `sticky_ttl_seconds`；页面显示"粘性会话：未启用 / N 秒"。粘性命中不推进轮询游标。
+- 满表改绑修复（PR #19）：既有键改绑始终允许，仅新键受表上限（4096）。红/绿回归：填满表 →
+  绑定会话的账号失去资格 → fallback 选新账号且改绑成功 → 下次命中新账号（修复前"绑定未更新"处红）。
+- 测试：`bash scripts/test.sh` 全绿（池层 7 个粘性用例 + 满表回归 + 插件层 3 个 + 配置层 1 个）。
+- 部署（2026-10-11 21:18 CST）：备份 `switch-to-0.1.15-<TS>/`；停服前 60 秒排空未成功
+  （`inflight=2`，按授权继续，**风险口径**），停服状态换库 + 改 `store.version` + 在 `pool:` 段
+  写入 `sticky-ttl: "24h"` → 启动。读回：`plugin_version 0.1.15-local`、
+  `scheduler_policy expiry-first`、**`sticky_ttl_seconds 86400`**、3 账号、bans 空。
+- **粘性会话真实验收**：pick 事件从 `off` → `miss`（首次绑定）→ `hit`（命中）：
+
+  ```
+  21:20:26  expiry-first  miss  8c9a331d  ← 新会话 A 绑定
+  21:20:26  expiry-first  miss  7b152f0d  ← 新会话 B 绑定
+  21:20:31  expiry-first  hit   7b152f0d  ← B 命中
+  21:20:32  expiry-first  hit   8c9a331d  ← A 命中
+  21:20:38  expiry-first  hit   8c9a331d  ← A 持续命中
+  ```
+
+  证明 `canonical_session_id` 在真实选号中送达，粘性表正确维护绑定与命中。
+- 未验证/边界：0.1.14（粘性功能首版）未单独发 Release（被满表修复合并后取代）；满表改绑
+  修复在生产无法自然触达（3 账号远不到 4096 会话），仅回归测试覆盖。
+
 ## 调度策略端到端验收：0.1.13-local（2026-10-11，已上线）
 
 - 部署（用户授权“直接做”）：60 秒排空尝试未成功（`inflight=3`），按授权继续；备份
