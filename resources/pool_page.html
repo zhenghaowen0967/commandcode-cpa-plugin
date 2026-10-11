@@ -272,7 +272,7 @@
     const info = $('scopeInfo');
     info.replaceChildren();
     if (!status) { info.append(el('span', '作用范围：尚未读取')); $('scopeDescription').textContent = ''; return; }
-    info.append(el('span', '插件版本：' + text(status.plugin_version)), el('span', '作用范围：' + (status.scope === 'single_process' ? '单进程' : text(status.scope))), el('span', '额度快照有效期：' + number(status.quota_max_age_seconds) + ' 秒'), el('span', '默认共享 cap：' + number(status.default_limit)));
+    info.append(el('span', '插件版本：' + text(status.plugin_version)), el('span', '作用范围：' + (status.scope === 'single_process' ? '单进程' : text(status.scope))), el('span', '额度快照有效期：' + number(status.quota_max_age_seconds) + ' 秒'), el('span', '默认共享 cap：' + number(status.default_limit)), el('span', '粘性会话：' + (status.sticky_ttl_seconds > 0 ? number(status.sticky_ttl_seconds) + ' 秒' : '未启用')));
     if (status.home_supported === false) info.append(el('span', 'Home 聚合：未支持'));
     $('scopeDescription').textContent = '单进程范围：在途计数和调度事件仅属于当前 CPA 进程，不代表其他实例；多实例运行时不能视为全局共享并发上限。每 5 秒同步账号与事件；真实额度由后端缓存返回。';
     show('scopeWarning', status.scope === 'single_process' ? '' : '当前作用范围不是预期的 single_process，请核对插件版本与返回合同。', 'warning');

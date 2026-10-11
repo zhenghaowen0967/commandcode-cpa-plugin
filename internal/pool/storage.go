@@ -23,6 +23,9 @@ func New(cfg Config) (*Pool, error) {
 		return nil, ErrInvalid
 	}
 	cfg.Strategy = normalizeStrategy(cfg.Strategy)
+	if cfg.StickyTTL < 0 || cfg.StickyTTL > MaxStickyTTL {
+		return nil, ErrInvalid
+	}
 	if cfg.QuotaMaxAge == 0 {
 		cfg.QuotaMaxAge = 5 * time.Minute
 	}
@@ -67,7 +70,7 @@ func New(cfg Config) (*Pool, error) {
 			return nil, ErrStorage
 		}
 	}
-	p := &Pool{cfg: cfg, accounts: make(map[string]*account), attempts: make(map[string]*Lease), inflight: make(map[string]int), terminal: make(map[string]struct{}), secrets: make(map[string]struct{}), rename: os.Rename}
+	p := &Pool{cfg: cfg, accounts: make(map[string]*account), attempts: make(map[string]*Lease), inflight: make(map[string]int), terminal: make(map[string]struct{}), secrets: make(map[string]struct{}), sticky: make(map[string]stickyBinding), rename: os.Rename}
 	// Lock both the auth namespace and state path: two configurations sharing
 	// either must not create independent concurrency counters.
 	paths := []string{filepath.Join(cfg.AuthDir, ".commandcode-pool.lock"), cfg.StatePath + ".lock", cfg.StatePath + ".journal.lock"}

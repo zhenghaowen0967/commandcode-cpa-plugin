@@ -40,7 +40,7 @@ func TestPoolPageSecurityAndContract(t *testing.T) {
 		`candidate.auth_id`, `event.attempt_id`, `window.confirm`, `overflow-x:auto`,
 		`组共享在途`, `同组只计一次`, `API 未提供单 Key 在途`,
 		`管理 Key`, `部分成功`, `共享并发 cap`,
-		`调度策略`, `strategy-blade`, `scheduler_policy`, `expiry-first`,
+		`调度策略`, `strategy-blade`, `scheduler_policy`, `expiry-first`, `sticky_ttl_seconds`,
 		`/v8/management/config/plugins/configs/`, `CPAMP 重载`,
 	} {
 		if !strings.Contains(page, required) {
@@ -159,7 +159,7 @@ class Element {
     walk(this); return result;
   }
 }
-const defaultStatus = {plugin_version: 'test-version', scope: 'single_process', quota_max_age_seconds: 120, default_limit: 4, home_supported: false, scheduler_policy: 'headroom-first'};
+const defaultStatus = {plugin_version: 'test-version', scope: 'single_process', quota_max_age_seconds: 120, default_limit: 4, home_supported: false, scheduler_policy: 'headroom-first', sticky_ttl_seconds: 0};
 function account(id = 'a', group = 'real-account-a') {
   return {id, auth_id: 'auth-' + id, name: '账号 ' + id, group_id: group, max_concurrency: 4, enabled: true, inflight: 1, key_fingerprint: 'sha256:abcd', status: 'eligible', quota: {remaining_credits: 42, headroom: .75, updated_at: new Date(Date.now() - 1000).toISOString(), email: 'test@example.invalid', plan: 'pro', identity: 'real-a', windows: [{name: 'five_hour', used: 25, cap: 100, remaining: 75, reset_at: '2030-01-01T00:00:00Z'}, {name: 'weekly', used: 10, cap: 100, remaining: 90}], monthly_credits: 21, month: {used: 49, cap: 70, remaining: 21, source: 'plan_allowance'}, subscription_period_end: '2030-01-16T00:00:00Z', subscription_status: 'active'}};
 }
@@ -214,6 +214,10 @@ const poolPageBehaviorHarness = poolPageDOMHarness + `
   }
   assert.ok(f.pageText().includes('单进程'));
   assert.ok(f.pageText().includes('Home 聚合：未支持'));
+  assert.ok(f.pageText().includes('粘性会话：未启用'), 'sticky sessions default to off');
+  const stickyOn = fixture(call => call.url.endsWith('/status') ? {status: {...defaultStatus, sticky_ttl_seconds: 3600}} : undefined);
+  await stickyOn.connect();
+  assert.ok(stickyOn.pageText().includes('粘性会话：3,600 秒'), 'an enabled sticky window is shown in seconds');
   assert.ok(f.get('groupRows').textContent.includes('2 / 2'));
   assert.ok(f.get('groupRows').textContent.includes('同组 cap 一致'));
   assert.equal(f.get('groupRows').children[0].children[2].textContent, '1', 'same shared inflight returned on two keys must count once');

@@ -60,6 +60,8 @@ type Pool struct {
 	// eligible set changes between requests, so rotation advances by identity
 	// rather than by an index into a set whose size moves.
 	roundRobinLast string
+	// sticky maps a session key to the account it was pinned to.
+	sticky map[string]stickyBinding
 	closed         bool
 	storageBroken  bool
 	locks          []*storageLock
@@ -99,6 +101,68 @@ func ValidStrategy(s string) bool {
 		return true
 	}
 	return false
+}
+
+// Sticky states recorded on a decision or event. They describe only whether a
+// session binding was honoured; the session key itself is never recorded.
+const (
+	StickyOff      = "off"
+	StickyHit      = "hit"
+	StickyMiss     = "miss"
+	StickyFallback = "fallback"
+)
+
+// MaxStickyTTL bounds sticky sessions so a stale binding cannot outlive an
+// operator's intent; MaxStickySessions bounds the in-process table.
+const (
+	MaxStickyTTL      = 168 * time.Hour
+	MaxStickySessions = 4096
+)
+
+type stickyBinding struct {
+	authID  string
+	expires time.Time
+}
+
+// SetStickyTTL enables (positive) or disables (zero) sticky sessions on a
+// running pool. Sessions bound while the TTL was longer keep their own expiry.
+func (p *Pool) SetStickyTTL(ttl time.Duration) error {
+	if ttl < 0 || ttl > MaxStickyTTL {
+		return ErrInvalid
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.cfg.StickyTTL = ttl
+	if ttl == 0 {
+		p.sticky = make(map[string]stickyBinding)
+	}
+	return nil
+}
+
+// StickyTTL returns the effective sticky session window; zero means disabled.
+func (p *Pool) StickyTTL() time.Duration {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.cfg.StickyTTL
+}
+
+// bindStickyLocked records a fresh binding, replacing an expired one and
+// sweeping the table when it grows past MaxStickySessions.
+func (p *Pool) bindStickyLocked(key, authID string, now time.Time) {
+	if key == "" || p.cfg.StickyTTL <= 0 {
+		return
+	}
+	if len(p.sticky) >= MaxStickySessions {
+		for existing, binding := range p.sticky {
+			if !binding.expires.After(now) {
+				delete(p.sticky, existing)
+			}
+		}
+		if len(p.sticky) >= MaxStickySessions {
+			return // table saturated with live bindings: drop the new one
+		}
+	}
+	p.sticky[key] = stickyBinding{authID: authID, expires: now.Add(p.cfg.StickyTTL)}
 }
 
 // normalizeStrategy maps blank or unknown values to the default strategy. It is
@@ -529,6 +593,14 @@ func (p *Pool) Pick(ids []string, requestID, model string) Decision {
 }
 
 func (p *Pool) PickWithTrace(ids []string, requestID, model, traceID string) Decision {
+	return p.PickWithSession(ids, requestID, model, traceID, "")
+}
+
+// PickWithSession selects one eligible account. A non-empty stickyKey pins that
+// session to the account it picked first for the configured window, as long as
+// that account stays eligible; otherwise the configured strategy decides and the
+// binding is replaced.
+func (p *Pool) PickWithSession(ids []string, requestID, model, traceID, stickyKey string) Decision {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	now := time.Now()
@@ -569,12 +641,47 @@ func (p *Pool) PickWithTrace(ids []string, requestID, model, traceID string) Dec
 		}
 	}
 	sort.Slice(decision.Candidates, func(i, j int) bool { return decision.Candidates[i].AuthID < decision.Candidates[j].AuthID })
-	if selected, ok := p.selectLocked(best, expiry, now); ok {
-		p.tie++
+	key := strings.TrimSpace(stickyKey)
+	stickyState := StickyOff
+	var selected CandidateScore
+	ok := false
+	if key != "" && p.cfg.StickyTTL > 0 {
+		binding, bound := p.sticky[key]
+		if bound && !binding.expires.After(now) {
+			delete(p.sticky, key)
+			bound = false
+			stickyState = StickyFallback
+		}
+		if bound {
+			for _, candidate := range best {
+				if candidate.AuthID == binding.authID {
+					selected, ok, stickyState = candidate, true, StickyHit
+					break
+				}
+			}
+			if !ok {
+				stickyState = StickyFallback
+			}
+		} else if stickyState != StickyFallback {
+			stickyState = StickyMiss
+		}
+	}
+	if !ok {
+		if selected, ok = p.selectLocked(best, expiry, now); ok {
+			p.tie++
+			p.bindStickyLocked(key, selected.AuthID, now)
+		}
+	} else if binding, bound := p.sticky[key]; bound {
+		// Slide the window while the session stays active.
+		binding.expires = now.Add(p.cfg.StickyTTL)
+		p.sticky[key] = binding
+	}
+	if ok {
 		decision.AuthID, decision.AccountID, decision.Reason = selected.AuthID, selected.AccountID, "selected"
 	}
 	decision.Strategy = p.cfg.Strategy
-	p.appendLocked(Event{RequestID: requestID, TraceID: traceID, Model: model, AccountID: decision.AccountID, Action: "pick", Reason: decision.Reason, Strategy: p.cfg.Strategy, Candidates: decision.Candidates})
+	decision.Sticky = stickyState
+	p.appendLocked(Event{RequestID: requestID, TraceID: traceID, Model: model, AccountID: decision.AccountID, Action: "pick", Reason: decision.Reason, Strategy: p.cfg.Strategy, Sticky: stickyState, Candidates: decision.Candidates})
 	return decision
 }
 

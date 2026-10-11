@@ -55,3 +55,26 @@ func TestPoolStrategyConfiguration(t *testing.T) {
 		t.Fatal("accepted an unknown pool strategy")
 	}
 }
+
+func TestPoolStickyTTLConfiguration(t *testing.T) {
+	c, err := Load(nil)
+	if err != nil || c.Pool.StickyTTL != 0 {
+		t.Fatalf("unset sticky ttl = %s (err=%v), want disabled", c.Pool.StickyTTL, err)
+	}
+	c, err = Load([]byte("pool:\n  sticky-ttl: \"30m\"\n"))
+	if err != nil || c.Pool.StickyTTL != 30*time.Minute {
+		t.Fatalf("sticky ttl = %s (err=%v)", c.Pool.StickyTTL, err)
+	}
+	if c, err = Load([]byte("pool:\n  sticky-ttl: \"0s\"\n")); err != nil || c.Pool.StickyTTL != 0 {
+		t.Fatalf("explicit zero = %s (err=%v)", c.Pool.StickyTTL, err)
+	}
+	for _, doc := range []string{
+		"pool:\n  sticky-ttl: \"-1s\"\n",
+		"pool:\n  sticky-ttl: \"169h\"\n",
+		"pool:\n  sticky-ttl: nope\n",
+	} {
+		if _, err := Load([]byte(doc)); err == nil {
+			t.Fatalf("accepted %q", doc)
+		}
+	}
+}

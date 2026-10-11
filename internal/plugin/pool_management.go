@@ -123,6 +123,7 @@ func (m *Manager) HandleManagement(ctx context.Context, req pluginapi.Management
 			"quota_refresh_interval_seconds": cfg.Pool.QuotaRefreshInterval.Seconds(),
 			"account_count":                  len(p.Snapshot()), "default_limit": cfg.Pool.DefaultLimit,
 			"home_supported": false, "scheduler_policy": p.Strategy(),
+			"sticky_ttl_seconds": p.StickyTTL().Seconds(),
 		}})
 	case req.Method == http.MethodGet && req.Path == base+"/events":
 		var after uint64

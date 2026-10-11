@@ -14,6 +14,9 @@ type Config struct {
 	// Strategy selects how eligible accounts are ordered at Pick time. A blank
 	// or unknown value falls back to StrategyHeadroomFirst.
 	Strategy string
+	// StickyTTL keeps a session on the account it first selected for that long.
+	// Zero disables sticky sessions (default): selection is per request.
+	StickyTTL time.Duration
 }
 
 type AccountInput struct {
@@ -90,6 +93,7 @@ type Decision struct {
 	AccountID  string           `json:"account_id,omitempty"`
 	Reason     string           `json:"reason"`
 	Strategy   string           `json:"strategy,omitempty"`
+	Sticky     string           `json:"sticky,omitempty"`
 	Candidates []CandidateScore `json:"candidates"`
 }
 
@@ -105,5 +109,6 @@ type Event struct {
 	Action     string           `json:"action"`
 	Reason     string           `json:"reason"`
 	Strategy   string           `json:"strategy,omitempty"`
+	Sticky     string           `json:"sticky,omitempty"`
 	Candidates []CandidateScore `json:"candidates,omitempty"`
 }
