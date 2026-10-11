@@ -5,8 +5,8 @@
 - 部署（用户授权“直接做”）：60 秒排空尝试未成功（`inflight=3`），按授权继续；备份
   `cpa-core/switch-to-0.1.13-20261011T103629Z/`（0.1.11 库 + config + state + SHA256SUMS 校验 OK）；
   **停服**状态下安装 `plugins/commandcode-pool-next-v0.1.13-local.so`（构建 SHA256 `ed789368…`）
-  并同步 `store.version`，随后 `start`。**代价（事实，非风险）**：停服时 inflight=3，那 3 个在途
-  请求被中断，客户端需自行重试。
+  并同步 `store.version`，随后 `start`。**代价（风险口径）**：停服前 60 秒采样 `inflight=3`；
+  是否真的被中断、客户端是否重试**未核实**（不为此再重启补证）。
 - 读回：`plugin_version 0.1.13-local`、`scheduler_policy headroom-first`、3 账号启用（cap 10）、
   bans 为空、`pool_active=true`、`activation_error=""`；`plugins/` 仅存 0.1.13 库。
 - 路由声明验证：`POST /v0/management/plugins/commandcode-pool-next/strategy` 非法值 →
@@ -16,7 +16,8 @@
   - 宿主日志 `PUT /v8/management/config/plugins/configs/commandcode-pool-next/pool/strategy` → 200；
   - `/status` 在 8317 与 18317 均报 `expiry-first`；`config.yaml` 第 19 行持久化为 `"expiry-first"`；
   - 事件级行为切换：点击前 4 次 pick = `headroom-first` → `zhwuol`（余量 0.744 最高）；
-    点击后 4 次 pick = `expiry-first` → `CommandCode account 1`（到期 2026-10-13 最早、余量 0.136 最低）。
+    点击后 4 次 pick = `expiry-first` → `CommandCode account 1`（**本期结束** 2026-10-13 最早、余量
+    0.136 最低；该策略以“本期结束 + 月额度 > 0”作启发式优先信号，不代表账号失效或额度作废）。
   - 验收口径：这是**真实运行 + 事件/日志归属**证据（非模拟探针），可标记完成。
 - 面板侧改动（CPAMP，非本仓库）的测试覆盖：新增 service 层（密钥选择/标量体不改写/路径窄放行）、
   controller 层（管理密钥替换、错误与空密钥绝不替换、方法门禁）与 **router 层**

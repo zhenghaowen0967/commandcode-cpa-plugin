@@ -20,7 +20,8 @@
 state + SHA256SUMS，已校验）；**停服状态**下换库并同步 `store.version`，随后启动。读回：
 `plugin_version 0.1.13-local`、`scheduler_policy headroom-first`、3 个账号启用、bans 为空、
 非法值探针得 `400 {"error":"unknown strategy"}`（证明新路由已声明可达）。
-代价：停服时 `inflight=3`，那 3 个在途请求被中断，客户端需自行重试。
+代价（风险口径）：停服前 60 秒采样 `inflight=3`；这 3 个在途请求是否真的被中断、客户端是否
+重试**未核实**（不为此再重启补证）。
 
 **真实点击验收**（用户在 CPAMP 面板点选 `expiry-first`，18:39 CST）：
 
@@ -28,8 +29,9 @@ state + SHA256SUMS，已校验）；**停服状态**下换库并同步 `store.ve
 - `/status` 在 **8317 与 18317 两个入口**均报 `expiry-first`；
 - `config.yaml` 该键持久化为 `"expiry-first"`（重启后仍生效）；
 - 池事件显示行为随之切换：点击前 4 次 `pick` 均为 `headroom-first` 选 `zhwuol`（余量最高
-  0.744）；点击后 4 次 `pick` 均为 `expiry-first` 选 `CommandCode account 1`（到期最早
-  2026-10-13、余量最低 0.136）。
+  0.744）；点击后 4 次 `pick` 均为 `expiry-first` 选 `CommandCode account 1`（**本期结束**最早
+  2026-10-13、余量最低 0.136）。`expiry-first` 以“本期结束时间 + 月额度 > 0”作**启发式优先信号**，
+  不代表账号失效，也不代表月额度必然重置。
 
 ## 历史已上线：0.1.11-local（2026-10-11）
 
