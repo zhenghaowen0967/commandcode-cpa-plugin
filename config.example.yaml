@@ -59,6 +59,11 @@ plugins:
         #   expiry-first: earliest future subscription period end that still has
         #                 monthly credits, then the headroom-first backstop
         # strategy: headroom-first
+        # Sticky sessions: keep one session on the account it first picked
+        # (sliding window). Omit, or set 0s, to disable (default). The binding is
+        # dropped as soon as that account loses eligibility, and the configured
+        # strategy decides again.
+        # sticky-ttl: "24h"
       # Prefer adding credentials through the pool page with an explicit
       # real-account group_id. Legacy api-keys all share configured-accounts.
       api-keys: []

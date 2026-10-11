@@ -31,7 +31,7 @@ const (
 	originalPluginID  = "commandcode-pool"
 	nextPluginID      = "commandcode-pool-next"
 	updatePluginID    = "commandcode-pool-update"
-	pluginVersion     = "0.1.13-local"
+	pluginVersion     = "0.1.14-local"
 	viewPluginVersion = "0.1.1-view"
 )
 
@@ -538,6 +538,7 @@ func (m *Manager) handleLifecycle(request []byte) ([]byte, error) {
 			p, errNew := pool.New(pool.Config{
 				AuthDir: authDir, StatePath: statePath, QuotaMaxAge: cfg.Pool.QuotaMaxAge,
 				DefaultLimit: cfg.Pool.DefaultLimit, EventLimit: 500, Strategy: cfg.Pool.Strategy,
+				StickyTTL: cfg.Pool.StickyTTL,
 			})
 			if errNew != nil {
 				return m.lifecycleFailureEnvelope("invalid_config", "pool state could not be loaded"), nil
@@ -632,6 +633,9 @@ func (m *Manager) handleLifecycle(request []byte) ([]byte, error) {
 	// strategy change into the still-running pool.
 	if err := m.pool.SetStrategy(cfg.Pool.Strategy); err != nil {
 		return m.lifecycleFailureEnvelope("invalid_config", "pool strategy is invalid"), nil
+	}
+	if err := m.pool.SetStickyTTL(cfg.Pool.StickyTTL); err != nil {
+		return m.lifecycleFailureEnvelope("invalid_config", "pool sticky session window is invalid"), nil
 	}
 	m.startRefreshLoop(cfg, mgr, cfg.Catalog.RefreshInterval, stop, done)
 	m.poolQuotaStop = m.startPoolQuotaLoop(cfg.Pool.QuotaRefreshInterval)

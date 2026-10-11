@@ -63,6 +63,7 @@ type PoolConfig struct {
 	QuotaMaxAge          time.Duration
 	QuotaRefreshInterval time.Duration
 	Strategy             string
+	StickyTTL            time.Duration
 }
 
 type Config struct {
@@ -92,6 +93,7 @@ type rawPool struct {
 	QuotaMaxAge          *string `yaml:"quota-max-age"`
 	QuotaRefreshInterval *string `yaml:"quota-refresh-interval"`
 	Strategy             *string `yaml:"strategy"`
+	StickyTTL            *string `yaml:"sticky-ttl"`
 }
 
 type rawConfig struct {
@@ -179,11 +181,18 @@ func Load(yamlBytes []byte) (Config, error) {
 			strategy = s
 		}
 	}
+	stickyTTL, err := parseDuration("pool.sticky-ttl", raw.Pool.StickyTTL, 0)
+	if err != nil {
+		return Config{}, err
+	}
+	if stickyTTL < 0 || stickyTTL > pool.MaxStickyTTL {
+		return Config{}, fmt.Errorf("pool.sticky-ttl: must be between 0s and %s", pool.MaxStickyTTL)
+	}
 	c := Config{
 		Pool: PoolConfig{
 			AuthDir: strings.TrimSpace(raw.Pool.AuthDir), StatePath: strings.TrimSpace(raw.Pool.StatePath),
 			DefaultLimit: orDefault(raw.Pool.DefaultLimit, 2), QuotaMaxAge: quotaMaxAge,
-			QuotaRefreshInterval: quotaRefresh, Strategy: strategy,
+			QuotaRefreshInterval: quotaRefresh, Strategy: strategy, StickyTTL: stickyTTL,
 		},
 		GuardOnly: raw.GuardOnly,
 		BaseURL:   orDefault(raw.BaseURL, DefaultBaseURL),

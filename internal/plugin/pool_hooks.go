@@ -20,6 +20,25 @@ const (
 // v8.0.20 只发布 selected_auth_id，不发布 auth provider；必须查可信池记录，不能按模型猜。
 const selectedPoolAuthMetadataKey = "selected_auth_id"
 
+// canonicalSessionMetadataKey is the host-provided session identity used as the
+// sticky-session key. The value is opaque and only ever held in memory.
+const canonicalSessionMetadataKey = "canonical_session_id"
+
+// poolHookSessionKey reads the host's canonical session identity from scheduler
+// metadata. Absent, malformed, or oversized values disable stickiness for that
+// request instead of pinning an unintended session.
+func poolHookSessionKey(metadata map[string]any) string {
+	if metadata == nil {
+		return ""
+	}
+	value, _ := metadata[canonicalSessionMetadataKey].(string)
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 256 {
+		return ""
+	}
+	return value
+}
+
 func (m *Manager) handleSchedulerPick(request []byte) ([]byte, error) {
 	var req pluginapi.SchedulerPickRequest
 	if json.Unmarshal(request, &req) != nil {
@@ -63,7 +82,7 @@ func (m *Manager) pickPoolIDs(req pluginapi.SchedulerPickRequest, ids []string) 
 		return poolSchedulerReject()
 	}
 	// 调度不预占并发；占位仍由实际上游I/O入口的 Acquire 执行。
-	decision := m.pool.PickWithTrace(ids, poolHookRequestID(req.Options.Headers), req.Model, poolHookTraceID(req.Options.Headers))
+	decision := m.pool.PickWithSession(ids, poolHookRequestID(req.Options.Headers), req.Model, poolHookTraceID(req.Options.Headers), poolHookSessionKey(req.Options.Metadata))
 	if decision.AuthID == "" {
 		return poolSchedulerReject()
 	}
