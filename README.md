@@ -1,6 +1,37 @@
 # CommandCode 原生 CPA 账号池插件
 
-## 当前已上线：0.1.11-local（2026-10-11）
+## 当前已上线：0.1.13-local（2026-10-11）
+
+本版让“在 CPAMP 面板里切换调度策略”真正**端到端可用**，并修正 0.1.11 的两处缺陷。
+
+- 插件在注册时**声明** `POST /v0/management/plugins/<id>/strategy`。宿主只转发注册时声明过的
+  插件管理路径；0.1.11 只实现了处理分支而未声明，导致该路径（直连 8317 也）返回**无 body 的
+  404**。guard-only 的路由切片索引随之 7→8。
+- 页面回退**仅在确认无此路由（404/405）**时发生：401/403 交给会话断开逻辑，超时与 5xx 保留为
+  失败——避免把“可能已经落盘”的写入误报成“仅本进程”。
+- 页面 `setStrategy` 复用既有 `mutation()`（generation/`alive` 校验、忽略 `AbortError`、
+  `mutating` 只由同一代会话复位），并在每个 `await` 后校验 generation，断开/重连时过期任务不再
+  回写 UI 或共享状态。
+- **面板侧改动（属 CPAMP，不在本仓库）**：面板路由放行 `/v8/management/config` 前缀并按调用者
+  密钥转发，页面因此可以用宿主配置文档 API 持久化策略。
+
+上线（2026-10-11 18:36 CST，用户授权“直接做”）：停服前 60 秒排空尝试未成功（`inflight=3`），
+按授权继续；备份目录 `cpa-core/switch-to-0.1.13-20261011T103629Z/`（0.1.11 旧库 + config +
+state + SHA256SUMS，已校验）；**停服状态**下换库并同步 `store.version`，随后启动。读回：
+`plugin_version 0.1.13-local`、`scheduler_policy headroom-first`、3 个账号启用、bans 为空、
+非法值探针得 `400 {"error":"unknown strategy"}`（证明新路由已声明可达）。
+代价：停服时 `inflight=3`，那 3 个在途请求被中断，客户端需自行重试。
+
+**真实点击验收**（用户在 CPAMP 面板点选 `expiry-first`，18:39 CST）：
+
+- 宿主日志：`PUT /v8/management/config/plugins/configs/commandcode-pool-next/pool/strategy` → **200**；
+- `/status` 在 **8317 与 18317 两个入口**均报 `expiry-first`；
+- `config.yaml` 该键持久化为 `"expiry-first"`（重启后仍生效）；
+- 池事件显示行为随之切换：点击前 4 次 `pick` 均为 `headroom-first` 选 `zhwuol`（余量最高
+  0.744）；点击后 4 次 `pick` 均为 `expiry-first` 选 `CommandCode account 1`（到期最早
+  2026-10-13、余量最低 0.136）。
+
+## 历史已上线：0.1.11-local（2026-10-11）
 
 本轮修复账号池页面的策略切换在**只转发 `/v0` 的第三方面板**（本机 `cpa-manager-plus`，
 `127.0.0.1:18317`）下不可用的问题，并加强页面的并发隔离。
