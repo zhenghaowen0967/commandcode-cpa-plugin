@@ -40,6 +40,8 @@ func TestPoolPageSecurityAndContract(t *testing.T) {
 		`candidate.auth_id`, `event.attempt_id`, `window.confirm`, `overflow-x:auto`,
 		`组共享在途`, `同组只计一次`, `API 未提供单 Key 在途`,
 		`管理 Key`, `部分成功`, `共享并发 cap`,
+		`调度策略`, `strategy-blade`, `scheduler_policy`, `expiry-first`,
+		`/v8/management/config/plugins/configs/`, `CPAMP 重载`,
 	} {
 		if !strings.Contains(page, required) {
 			t.Errorf("missing security or management contract: %s", required)
@@ -157,7 +159,7 @@ class Element {
     walk(this); return result;
   }
 }
-const defaultStatus = {plugin_version: 'test-version', scope: 'single_process', quota_max_age_seconds: 120, default_limit: 4, home_supported: false};
+const defaultStatus = {plugin_version: 'test-version', scope: 'single_process', quota_max_age_seconds: 120, default_limit: 4, home_supported: false, scheduler_policy: 'headroom-first'};
 function account(id = 'a', group = 'real-account-a') {
   return {id, auth_id: 'auth-' + id, name: '账号 ' + id, group_id: group, max_concurrency: 4, enabled: true, inflight: 1, key_fingerprint: 'sha256:abcd', status: 'eligible', quota: {remaining_credits: 42, headroom: .75, updated_at: new Date(Date.now() - 1000).toISOString(), email: 'test@example.invalid', plan: 'pro', identity: 'real-a', windows: [{name: 'five_hour', used: 25, cap: 100, remaining: 75, reset_at: '2030-01-01T00:00:00Z'}, {name: 'weekly', used: 10, cap: 100, remaining: 90}], monthly_credits: 21, month: {used: 49, cap: 70, remaining: 21, source: 'plan_allowance'}, subscription_period_end: '2030-01-16T00:00:00Z', subscription_status: 'active'}};
 }
@@ -365,6 +367,55 @@ const poolPageBehaviorHarness = poolPageDOMHarness + `
   await pending.get('disconnectButton').fire('click');
   resolveAccounts({ok: true, status: 200, text: async () => JSON.stringify({accounts: [account('late')]})}); await pending.flush();
   assert.equal(pending.get('accountRows').children.length, 0, 'late response must not restore disconnected data'); assert.equal(pending.timers.size, 0); assert.ok(pending.calls.every(c => c.options.signal.aborted));
+  let activeStrategy = 'headroom-first';
+  const strategy = fixture(call => {
+    if (call.options.method === 'PUT') { activeStrategy = JSON.parse(call.options.body); return {status: 'ok'}; }
+    return call.url.endsWith('/status') ? {status: {...defaultStatus, scheduler_policy: activeStrategy}} : undefined;
+  });
+  await strategy.connect();
+  const blades = strategy.get('strategyBlades').querySelectorAll('.strategy-blade');
+  assert.equal(blades.length, 4, 'four scheduling strategies are offered');
+  assert.ok(blades.find(b => b.dataset.strategy === 'headroom-first').className.includes('active'), 'current strategy comes from the status payload');
+  assert.ok(strategy.get('strategyState').textContent.includes('当前生效：headroom-first'));
+  await blades.find(b => b.dataset.strategy === 'expiry-first').fire('click');
+  await strategy.flush();
+  const put = strategy.calls.find(c => c.options.method === 'PUT');
+  assert.ok(put, 'clicking a blade writes the host config');
+  assert.equal(put.url, '/v8/management/config/plugins/configs/commandcode-pool/pool/strategy', 'writes only the strategy key path');
+  assert.equal(put.options.body, '"expiry-first"', 'body is the bare value, never a whole plugin config object');
+  assert.equal(put.options.headers.Authorization, 'Bearer fake-management-key');
+  assert.equal(put.options.credentials, 'same-origin'); assert.equal(put.options.cache, 'no-store'); assert.equal(put.options.redirect, 'error');
+  assert.ok(strategy.calls.some(c => c.url.endsWith('/status')), 'read-back confirms through the plugin status endpoint');
+  assert.ok(strategy.get('strategyState').textContent.includes('当前生效：expiry-first'), 'reports the confirmed strategy');
+  assert.ok(strategy.get('strategyBlades').querySelectorAll('.strategy-blade').find(b => b.dataset.strategy === 'expiry-first').className.includes('active'));
+  await strategy.get('disconnectButton').fire('click');
+  assert.ok(strategy.get('strategyState').textContent.includes('连接后读取'), 'disconnect resets the strategy state');
+  assert.ok(strategy.get('strategyBlades').querySelectorAll('.strategy-blade').every(b => b.disabled), 'disconnected blades are disabled');
+
+  let lagging = 'headroom-first';
+  const lag = fixture(call => {
+    if (call.options.method === 'PUT') return {status: 'ok'};
+    return call.url.endsWith('/status') ? {status: {...defaultStatus, scheduler_policy: lagging}} : undefined;
+  });
+  await lag.connect();
+  await lag.get('strategyBlades').querySelectorAll('.strategy-blade').find(b => b.dataset.strategy === 'fill-first').fire('click');
+  await lag.flush();
+  assert.ok(lag.get('strategyState').textContent.includes('等待 CPAMP 重载确认'), 'an asynchronous reload must not be reported as applied');
+  assert.ok(!lag.get('strategyState').textContent.includes('当前生效：fill-first'));
+  lagging = 'fill-first';
+  await lag.get('reloadButton').fire('click'); await lag.flush();
+  assert.ok(lag.get('strategyState').textContent.includes('当前生效：fill-first'), 'the next sync flips the pending strategy to applied');
+
+  const writeFail = fixture(call => call.options.method === 'PUT' ? {httpStatus: 500} : (call.url.endsWith('/status') ? {status: {...defaultStatus, scheduler_policy: 'headroom-first'}} : undefined));
+  await writeFail.connect();
+  await writeFail.get('strategyBlades').querySelectorAll('.strategy-blade').find(b => b.dataset.strategy === 'round-robin').fire('click');
+  await writeFail.flush();
+  assert.ok(writeFail.get('strategyError').textContent.includes('HTTP 500'));
+  assert.ok(writeFail.get('strategyState').textContent.includes('保存失败'));
+  assert.ok(!writeFail.get('strategyState').textContent.includes('当前生效：round-robin'), 'a failed write must never claim the new strategy');
+  await writeFail.get('disconnectButton').fire('click');
+  assert.equal(writeFail.get('strategyError').hidden, true, 'disconnect clears the strategy error banner');
+
   process.stdout.write('pool page mock-DOM management regressions passed\n');
 })().catch(error => {console.error(error); process.exitCode = 1;});
 `

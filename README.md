@@ -324,6 +324,8 @@ CPA 仅绑定 `127.0.0.1:18633`，插件上游仅指向 `127.0.0.1:18635`；目�
 - `pool.auth-dir`、`pool.state-path`、`pool.max-concurrency`（默认 cap）及
   `pool.quota-max-age` 不能在线更换，需要获准重启 CPA。
 - `pool.strategy`（调度策略）可热载：重配置后立即对后续选号生效，已在途的请求不受影响。
+  账号池页面连接后可切换策略：只写入配置中的该键（不改动插件其他配置），由 CPAMP
+  异步重载，页面读回 `/status` 的 `scheduler_policy` 确认后才标记为已生效。
 - 单个账号的名称、启用状态和并发 cap 可通过管理页面/API 热修改；同一 group 的
   cap 是共享限制，更新会保持组内一致。降低 cap 不会提前释放已经在途的请求。
 - 旧组有任何 Key 在途时不能迁组；已知厂商身份有 owner 时不能替换身份。
