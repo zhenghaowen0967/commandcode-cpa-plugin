@@ -434,6 +434,41 @@ const poolPageBehaviorHarness = poolPageDOMHarness + `
   assert.ok(fallback.get('strategyState').textContent.includes('仅本进程'), 'must disclose that the config file was not written');
   assert.equal(fallback.get('strategyError').hidden, true);
 
+  // 非“缺路由”错误不得回退：401 断开会话、5xx 保留失败，避免把已落盘/超时误报成“仅本进程”。
+  const authFail = fixture(call => {
+    if (call.url.includes('/v8/management/config/')) return {httpStatus: 401};
+    return call.url.endsWith('/status') ? {status: {...defaultStatus, scheduler_policy: 'headroom-first'}} : undefined;
+  });
+  await authFail.connect();
+  await authFail.get('strategyBlades').querySelectorAll('.strategy-blade').find(b => b.dataset.strategy === 'fill-first').fire('click');
+  await authFail.flush();
+  assert.ok(!authFail.calls.some(c => c.options.method === 'POST' && c.url === '/v0/management/plugins/commandcode-pool/strategy'), 'an auth failure must not fall back to the plugin endpoint');
+  assert.equal(authFail.get('managementKey').disabled, false, 'an auth failure disconnects the session');
+
+  const fiveHundred = fixture(call => {
+    if (call.url.includes('/v8/management/config/')) return {httpStatus: 500};
+    return call.url.endsWith('/status') ? {status: {...defaultStatus, scheduler_policy: 'headroom-first'}} : undefined;
+  });
+  await fiveHundred.connect();
+  await fiveHundred.get('strategyBlades').querySelectorAll('.strategy-blade').find(b => b.dataset.strategy === 'expiry-first').fire('click');
+  await fiveHundred.flush();
+  assert.ok(!fiveHundred.calls.some(c => c.options.method === 'POST' && c.url === '/v0/management/plugins/commandcode-pool/strategy'), 'a 5xx on the config write must not be retried through the plugin endpoint');
+  assert.ok(fiveHundred.get('strategyError').textContent.includes('HTTP 500'));
+  assert.ok(fiveHundred.get('strategyState').textContent.includes('保存失败'));
+  assert.ok(!fiveHundred.get('strategyState').textContent.includes('当前生效：expiry-first'));
+
+  let movedPolicy = 'headroom-first';
+  const movedPath = fixture(call => {
+    if (call.url.includes('/v8/management/config/')) return {httpStatus: 405};
+    if (call.url.endsWith('/strategy') && call.options.method === 'POST') { movedPolicy = call.body.strategy; return {strategy: call.body.strategy, runtime_only: true}; }
+    return call.url.endsWith('/status') ? {status: {...defaultStatus, scheduler_policy: movedPolicy}} : undefined;
+  });
+  await movedPath.connect();
+  await movedPath.get('strategyBlades').querySelectorAll('.strategy-blade').find(b => b.dataset.strategy === 'round-robin').fire('click');
+  await movedPath.flush();
+  assert.ok(movedPath.calls.some(c => c.options.method === 'POST' && c.url === '/v0/management/plugins/commandcode-pool/strategy'), 'a 405 (no such route) still falls back');
+  assert.ok(movedPath.get('strategyState').textContent.includes('仅本进程'));
+
   process.stdout.write('pool page mock-DOM management regressions passed\n');
 })().catch(error => {console.error(error); process.exitCode = 1;});
 `
