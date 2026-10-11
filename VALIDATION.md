@@ -1,6 +1,31 @@
 # 本地与官方模拟联调验证记录
 
-## 面板入口与配置写入：0.1.11-local 已上线、0.1.13-local 待部署（2026-10-11）
+## 调度策略端到端验收：0.1.13-local（2026-10-11，已上线）
+
+- 部署（用户授权“直接做”）：60 秒排空尝试未成功（`inflight=3`），按授权继续；备份
+  `cpa-core/switch-to-0.1.13-20261011T103629Z/`（0.1.11 库 + config + state + SHA256SUMS 校验 OK）；
+  **停服**状态下安装 `plugins/commandcode-pool-next-v0.1.13-local.so`（构建 SHA256 `ed789368…`）
+  并同步 `store.version`，随后 `start`。**代价（事实，非风险）**：停服时 inflight=3，那 3 个在途
+  请求被中断，客户端需自行重试。
+- 读回：`plugin_version 0.1.13-local`、`scheduler_policy headroom-first`、3 账号启用（cap 10）、
+  bans 为空、`pool_active=true`、`activation_error=""`；`plugins/` 仅存 0.1.13 库。
+- 路由声明验证：`POST /v0/management/plugins/commandcode-pool-next/strategy` 非法值 →
+  `400 {"error":"unknown strategy"}`（0.1.11 同路径为**无 body 的 404**，即“处理分支已实现但未在
+  注册中声明”）；同值写入 → `200 {"strategy":"headroom-first","runtime_only":true,...}`。
+- **真实点击验收**（用户在 CPAMP 面板点选 `expiry-first`）：
+  - 宿主日志 `PUT /v8/management/config/plugins/configs/commandcode-pool-next/pool/strategy` → 200；
+  - `/status` 在 8317 与 18317 均报 `expiry-first`；`config.yaml` 第 19 行持久化为 `"expiry-first"`；
+  - 事件级行为切换：点击前 4 次 pick = `headroom-first` → `zhwuol`（余量 0.744 最高）；
+    点击后 4 次 pick = `expiry-first` → `CommandCode account 1`（到期 2026-10-13 最早、余量 0.136 最低）。
+  - 验收口径：这是**真实运行 + 事件/日志归属**证据（非模拟探针），可标记完成。
+- 面板侧改动（CPAMP，非本仓库）的测试覆盖：新增 service 层（密钥选择/标量体不改写/路径窄放行）、
+  controller 层（管理密钥替换、错误与空密钥绝不替换、方法门禁）与 **router 层**
+  （`router.New(appCtx).ServeHTTP` 全链路）；router 用例做过**红/绿**验证——临时摘掉分发分支后
+  复现 `PUT ... status=404 page not found`，恢复后通过。该模块 `go test ./...` = 65 包全通过。
+- 未验证/边界：`GET /v8/management/config`（无尾斜杠）未分发（页面只用深路径写入）；
+  0.1.13 的页面回退分支（404/405 才回退）在生产未再触发（点击走的是主路径，已持久化）。
+
+## 面板入口与配置写入：0.1.11-local 与 0.1.13-local（2026-10-11）
 
 - 现象：在用户实际使用的 CPAMP 面板（第三方 `cpa-manager-plus`，docker host 网络，
   `0.0.0.0:18317`）里点击策略刀闸报 `管理 API 返回 HTTP 404`；CPA 本体（`127.0.0.1:8317`）
@@ -25,8 +50,7 @@
   （全文件核对无 `bogus`，无新增注册失败）。页面只提供合法值，但任意写入方都可能污染配置，
   后续可考虑让插件在配置非法时回退默认值并记录，而非整体拒绝激活（**待用户决策**）。
 - 部署状态：`0.1.11-local` 已上线（见 README，备份目录 `v0-stategy-path-migration-20261011T073307Z/`）；
-  `0.1.13-local` 已构建（SHA256 `ed789368…`）但**未部署**：两次排空门槛（120s 与 180s）都未等到
-  `inflight==0`（用户流量持续 1–4 个在途），按规范未在有在途请求时重启。
+  `0.1.13-local` 已构建（SHA256 `ed789368…`）并在用户授权后部署（见本节首条：停服前 60s 排空未成功、按授权继续）。
 - 未验证/降级说明：① 15:33 的 0.1.10→0.1.11 切换在 `inflight=2` 时重启，只证明存在中断风险，
   **未确认**那两个请求被中断（池事件是进程内存，重启后无法回溯）；② “热重载注册失败窗口内
   Scheduler/Codex 保护失效”属推断，未做行为探针；③ 面板补丁的 `GET /v8/management/config`
