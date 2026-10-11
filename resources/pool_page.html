@@ -190,9 +190,10 @@
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
           const error = new Error('管理 Key 无效或没有权限（HTTP ' + response.status + '）。请重新连接。');
-          error.authenticationFailed = true; throw error;
+          error.authenticationFailed = true; error.status = response.status; throw error;
         }
-        throw new Error('管理 API 返回 HTTP ' + response.status + '。请检查 CPAMP 与插件状态。');
+        const error = new Error('管理 API 返回 HTTP ' + response.status + '。请检查 CPAMP 与插件状态。');
+        error.status = response.status; throw error;
       }
       // 以字符串保留 uint64 游标，避免浏览器数值精度造成漏读。
       const raw = await response.text();
@@ -247,8 +248,9 @@
           persisted = true;
         } catch (error) {
           if (error.name === 'AbortError' || !alive(version)) throw error;
-          // 部分面板入口只转发 /v0，不转发宿主配置写入（/v8）；退回插件接口，
-          // 立即在本进程生效，并如实标注未落盘。
+          // 只有确认“当前入口没有这条路由”（404/405）才回退；401/403 交给 mutation 断开会话，
+          // 超时与 5xx 一律保留为失败——写请求可能已经落盘，不能误报“仅本进程”。
+          if (error.status !== 404 && error.status !== 405) throw error;
           await api('strategy', 'POST', {strategy: id});
         }
         // 过期会话（已断开或已重连）不得继续读回或写共享状态。
