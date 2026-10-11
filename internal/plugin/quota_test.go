@@ -28,6 +28,7 @@ func TestManagementRegistration(t *testing.T) {
 		{http.MethodPost, "/plugins/" + pluginName + "/accounts/import"},
 		{http.MethodPost, "/plugins/" + pluginName + "/accounts/delete"},
 		{http.MethodPost, "/plugins/" + pluginName + "/quota/refresh"},
+		{http.MethodPost, "/plugins/" + pluginName + "/strategy"},
 		{http.MethodGet, "/plugins/" + pluginName + "/events"},
 		{http.MethodGet, "/plugins/" + pluginName + "/status"},
 		{http.MethodGet, "/plugins/" + pluginName + "/codex/bans"},
