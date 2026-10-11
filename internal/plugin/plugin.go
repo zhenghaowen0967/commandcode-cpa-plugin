@@ -31,7 +31,7 @@ const (
 	originalPluginID  = "commandcode-pool"
 	nextPluginID      = "commandcode-pool-next"
 	updatePluginID    = "commandcode-pool-update"
-	pluginVersion     = "0.1.9-local"
+	pluginVersion     = "0.1.10-local"
 	viewPluginVersion = "0.1.1-view"
 )
 
@@ -536,7 +536,7 @@ func (m *Manager) handleLifecycle(request []byte) ([]byte, error) {
 		if m.pool == nil {
 			p, errNew := pool.New(pool.Config{
 				AuthDir: authDir, StatePath: statePath, QuotaMaxAge: cfg.Pool.QuotaMaxAge,
-				DefaultLimit: cfg.Pool.DefaultLimit, EventLimit: 500,
+				DefaultLimit: cfg.Pool.DefaultLimit, EventLimit: 500, Strategy: cfg.Pool.Strategy,
 			})
 			if errNew != nil {
 				return m.lifecycleFailureEnvelope("invalid_config", "pool state could not be loaded"), nil
@@ -624,6 +624,13 @@ func (m *Manager) handleLifecycle(request []byte) ([]byte, error) {
 			return m.lifecycleFailureEnvelope("catalog_publication_failed", "catalog publication failed"), nil
 		}
 		return ErrEnvelope("catalog_publication_failed", "catalog publication failed"), nil
+	}
+	// config.Load already validated the strategy, so this cannot fail. Apply it
+	// here, after every fallible step: a reconfigure that fails later (catalog
+	// publication) rolls back to the previous config and must not leak a
+	// strategy change into the still-running pool.
+	if err := m.pool.SetStrategy(cfg.Pool.Strategy); err != nil {
+		return m.lifecycleFailureEnvelope("invalid_config", "pool strategy is invalid"), nil
 	}
 	m.startRefreshLoop(cfg, mgr, cfg.Catalog.RefreshInterval, stop, done)
 	m.poolQuotaStop = m.startPoolQuotaLoop(cfg.Pool.QuotaRefreshInterval)

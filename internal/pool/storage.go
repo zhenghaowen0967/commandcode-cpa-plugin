@@ -22,6 +22,7 @@ func New(cfg Config) (*Pool, error) {
 	if strings.TrimSpace(cfg.AuthDir) == "" || strings.TrimSpace(cfg.StatePath) == "" {
 		return nil, ErrInvalid
 	}
+	cfg.Strategy = normalizeStrategy(cfg.Strategy)
 	if cfg.QuotaMaxAge == 0 {
 		cfg.QuotaMaxAge = 5 * time.Minute
 	}

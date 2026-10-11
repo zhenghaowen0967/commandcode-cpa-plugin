@@ -56,11 +56,15 @@ type Pool struct {
 	sequence      uint64
 	nextAttempt   uint64
 	tie           uint64
-	closed        bool
-	storageBroken bool
-	locks         []*storageLock
-	secrets       map[string]struct{}
-	rename        func(string, string) error // instance-local transaction failure test seam
+	// roundRobinLast is the auth ID chosen by the previous round-robin pick. The
+	// eligible set changes between requests, so rotation advances by identity
+	// rather than by an index into a set whose size moves.
+	roundRobinLast string
+	closed         bool
+	storageBroken  bool
+	locks          []*storageLock
+	secrets        map[string]struct{}
+	rename         func(string, string) error // instance-local transaction failure test seam
 }
 
 // Lease is an upstream owner's reservation, not an expiring ticket. Cancel only
@@ -78,6 +82,52 @@ type Lease struct {
 	accountID   string
 	settled     bool
 	quarantined bool
+}
+
+// Scheduling strategies. The values are the canonical configuration spellings.
+const (
+	StrategyHeadroomFirst = "headroom-first"
+	StrategyRoundRobin    = "round-robin"
+	StrategyFillFirst     = "fill-first"
+	StrategyExpiryFirst   = "expiry-first"
+)
+
+// ValidStrategy reports whether s is a canonical strategy spelling.
+func ValidStrategy(s string) bool {
+	switch s {
+	case StrategyHeadroomFirst, StrategyRoundRobin, StrategyFillFirst, StrategyExpiryFirst:
+		return true
+	}
+	return false
+}
+
+// normalizeStrategy maps blank or unknown values to the default strategy. It is
+// only for constructor input; runtime changes go through SetStrategy, which
+// rejects unknown values instead of silently falling back.
+func normalizeStrategy(s string) string {
+	if ValidStrategy(s) {
+		return s
+	}
+	return StrategyHeadroomFirst
+}
+
+// SetStrategy switches the scheduling strategy of a running pool. Only affects
+// later picks: scheduling never reserves, so in-flight leases are untouched.
+func (p *Pool) SetStrategy(strategy string) error {
+	if !ValidStrategy(strategy) {
+		return ErrInvalid
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.cfg.Strategy = strategy
+	return nil
+}
+
+// Strategy returns the effective scheduling strategy.
+func (p *Pool) Strategy() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.cfg.Strategy
 }
 
 func keyHash(key string) string {
@@ -483,6 +533,12 @@ func (p *Pool) PickWithTrace(ids []string, requestID, model, traceID string) Dec
 	defer p.mu.Unlock()
 	now := time.Now()
 	decision := Decision{Reason: "no_eligible_account", Candidates: make([]CandidateScore, 0, len(ids))}
+	// Expiry-first reads the subscription display fields, which deliberately
+	// stay out of CandidateScore so display metadata never perturbs scores.
+	var expiry map[string]expiration
+	if p.cfg.Strategy == StrategyExpiryFirst {
+		expiry = make(map[string]expiration, len(ids))
+	}
 	var best []CandidateScore
 	seen := make(map[string]bool)
 	for _, id := range ids {
@@ -502,6 +558,9 @@ func (p *Pool) PickWithTrace(ids []string, requestID, model, traceID string) Dec
 				score.Reason = "request_finished"
 			}
 			score.Eligible = score.Reason == "eligible"
+			if expiry != nil {
+				expiry[a.AuthID] = expirationOf(a.quota)
+			}
 			break
 		}
 		decision.Candidates = append(decision.Candidates, score)
@@ -510,30 +569,111 @@ func (p *Pool) PickWithTrace(ids []string, requestID, model, traceID string) Dec
 		}
 	}
 	sort.Slice(decision.Candidates, func(i, j int) bool { return decision.Candidates[i].AuthID < decision.Candidates[j].AuthID })
-	sort.Slice(best, func(i, j int) bool {
-		a, b := best[i], best[j]
-		if a.Headroom != b.Headroom {
-			return a.Headroom > b.Headroom
-		}
-		if a.RemainingCredits != b.RemainingCredits {
-			return a.RemainingCredits > b.RemainingCredits
-		}
-		if a.Inflight*b.Limit != b.Inflight*a.Limit {
-			return a.Inflight*b.Limit < b.Inflight*a.Limit
-		}
-		return a.AuthID < b.AuthID
-	})
-	if len(best) > 0 {
-		count := 1
-		for count < len(best) && sameScore(best[0], best[count]) {
-			count++
-		}
-		selected := best[p.tie%uint64(count)]
+	if selected, ok := p.selectLocked(best, expiry, now); ok {
 		p.tie++
 		decision.AuthID, decision.AccountID, decision.Reason = selected.AuthID, selected.AccountID, "selected"
 	}
-	p.appendLocked(Event{RequestID: requestID, TraceID: traceID, Model: model, AccountID: decision.AccountID, Action: "pick", Reason: decision.Reason, Candidates: decision.Candidates})
+	decision.Strategy = p.cfg.Strategy
+	p.appendLocked(Event{RequestID: requestID, TraceID: traceID, Model: model, AccountID: decision.AccountID, Action: "pick", Reason: decision.Reason, Strategy: p.cfg.Strategy, Candidates: decision.Candidates})
 	return decision
+}
+
+// headroomLess is the backstop ordering shared by headroom-first and the
+// expiry-first fallback: most headroom, then most credits, then least load.
+func headroomLess(a, b CandidateScore) bool {
+	if a.Headroom != b.Headroom {
+		return a.Headroom > b.Headroom
+	}
+	if a.RemainingCredits != b.RemainingCredits {
+		return a.RemainingCredits > b.RemainingCredits
+	}
+	if a.Inflight*b.Limit != b.Inflight*a.Limit {
+		return a.Inflight*b.Limit < b.Inflight*a.Limit
+	}
+	return a.AuthID < b.AuthID
+}
+
+// expiration carries the subscription inputs expiry-first reads. It stays out
+// of CandidateScore so display metadata cannot perturb admission or scores.
+type expiration struct {
+	periodEnd time.Time
+	hasEnd    bool
+	monthly   float64
+	hasMon    bool
+}
+
+func expirationOf(q Quota) expiration {
+	e := expiration{}
+	if q.SubscriptionPeriodEnd != nil {
+		e.periodEnd, e.hasEnd = *q.SubscriptionPeriodEnd, true
+	}
+	if q.MonthlyCredits != nil {
+		e.monthly, e.hasMon = *q.MonthlyCredits, true
+	}
+	return e
+}
+
+// rotateTop returns the candidate at the rotation offset within the leading run
+// of equal-ranked entries, so identical candidates share load evenly.
+func rotateTop(ranked []CandidateScore, equal func(a, b CandidateScore) bool, tie uint64) CandidateScore {
+	count := 1
+	for count < len(ranked) && equal(ranked[0], ranked[count]) {
+		count++
+	}
+	return ranked[tie%uint64(count)]
+}
+
+// selectLocked applies the configured strategy to the eligible candidates. It
+// reorders best in place; callers must not depend on the input order.
+func (p *Pool) selectLocked(best []CandidateScore, expiry map[string]expiration, now time.Time) (CandidateScore, bool) {
+	if len(best) == 0 {
+		return CandidateScore{}, false
+	}
+	switch p.cfg.Strategy {
+	case StrategyRoundRobin:
+		// Rotate across every eligible candidate, ignoring scores: even
+		// consumption at the cost of a higher chance of hitting a limit. The
+		// cursor advances to the next auth ID after the previous pick, so an
+		// account that is always eligible cannot be starved by peers that come
+		// and go.
+		sort.SliceStable(best, func(i, j int) bool { return best[i].AuthID < best[j].AuthID })
+		idx := sort.Search(len(best), func(i int) bool { return best[i].AuthID > p.roundRobinLast })
+		if idx == len(best) {
+			idx = 0
+		}
+		selected := best[idx]
+		p.roundRobinLast = selected.AuthID
+		return selected, true
+	case StrategyFillFirst:
+		// Fixed order, exhaust the current account before moving on.
+		sort.SliceStable(best, func(i, j int) bool { return best[i].AuthID < best[j].AuthID })
+		return best[0], true
+	case StrategyExpiryFirst:
+		// Priority only for a future period end that still carries monthly
+		// credits: an exhausted monthly allowance has nothing left to save by
+		// resetting, so it must not outrank an account that does.
+		tier := make([]CandidateScore, 0, len(best))
+		for _, c := range best {
+			if e := expiry[c.AuthID]; e.hasEnd && e.periodEnd.After(now) && e.hasMon && e.monthly > 0 {
+				tier = append(tier, c)
+			}
+		}
+		if len(tier) > 0 {
+			sort.SliceStable(tier, func(i, j int) bool {
+				ei, ej := expiry[tier[i].AuthID], expiry[tier[j].AuthID]
+				if !ei.periodEnd.Equal(ej.periodEnd) {
+					return ei.periodEnd.Before(ej.periodEnd)
+				}
+				return headroomLess(tier[i], tier[j])
+			})
+			return rotateTop(tier, func(a, b CandidateScore) bool {
+				return expiry[a.AuthID].periodEnd.Equal(expiry[b.AuthID].periodEnd) && sameScore(a, b)
+			}, p.tie), true
+		}
+	}
+	// headroom-first default, and the expiry-first backstop.
+	sort.SliceStable(best, func(i, j int) bool { return headroomLess(best[i], best[j]) })
+	return rotateTop(best, sameScore, p.tie), true
 }
 func sameScore(a, b CandidateScore) bool {
 	return a.Headroom == b.Headroom && a.RemainingCredits == b.RemainingCredits && a.Inflight*b.Limit == b.Inflight*a.Limit

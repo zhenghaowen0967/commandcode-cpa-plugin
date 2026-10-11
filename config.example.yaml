@@ -52,6 +52,13 @@ plugins:
         max-concurrency: 2
         quota-max-age: "5m"
         quota-refresh-interval: "1m"
+        # How eligible accounts are ordered at pick time; hot-reloadable.
+        #   headroom-first (default): most window headroom, then credits, then load
+        #   round-robin: rotate every eligible account, ignoring scores
+        #   fill-first: fixed auth-ID order, exhaust the current account first
+        #   expiry-first: earliest future subscription period end that still has
+        #                 monthly credits, then the headroom-first backstop
+        # strategy: headroom-first
       # Prefer adding credentials through the pool page with an explicit
       # real-account group_id. Legacy api-keys all share configured-accounts.
       api-keys: []
