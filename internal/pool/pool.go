@@ -146,10 +146,16 @@ func (p *Pool) StickyTTL() time.Duration {
 	return p.cfg.StickyTTL
 }
 
-// bindStickyLocked records a fresh binding, replacing an expired one and
-// sweeping the table when it grows past MaxStickySessions.
+// bindStickyLocked records a fresh binding. Existing keys are always allowed to
+// rebind — refusing them at capacity would leave a session stuck on an account
+// it can no longer use. Only brand-new keys are subject to the table limit.
 func (p *Pool) bindStickyLocked(key, authID string, now time.Time) {
 	if key == "" || p.cfg.StickyTTL <= 0 {
+		return
+	}
+	expires := now.Add(p.cfg.StickyTTL)
+	if _, exists := p.sticky[key]; exists {
+		p.sticky[key] = stickyBinding{authID: authID, expires: expires}
 		return
 	}
 	if len(p.sticky) >= MaxStickySessions {
@@ -159,10 +165,10 @@ func (p *Pool) bindStickyLocked(key, authID string, now time.Time) {
 			}
 		}
 		if len(p.sticky) >= MaxStickySessions {
-			return // table saturated with live bindings: drop the new one
+			return // 表满且无过期项：拒绝新键
 		}
 	}
-	p.sticky[key] = stickyBinding{authID: authID, expires: now.Add(p.cfg.StickyTTL)}
+	p.sticky[key] = stickyBinding{authID: authID, expires: expires}
 }
 
 // normalizeStrategy maps blank or unknown values to the default strategy. It is
