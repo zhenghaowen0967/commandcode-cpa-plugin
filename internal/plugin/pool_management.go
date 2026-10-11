@@ -92,7 +92,7 @@ func (m *Manager) HandleManagement(ctx context.Context, req pluginapi.Management
 		return m.handleCodexManagement(req)
 	}
 	crud := req.Method == http.MethodPost && (req.Path == base+"/accounts" || req.Path == base+"/accounts/import" || req.Path == base+"/accounts/delete")
-	known := crud || req.Method == http.MethodGet && (req.Path == base+"/accounts" || req.Path == base+"/events" || req.Path == base+"/status") || req.Method == http.MethodPost && req.Path == base+"/quota/refresh"
+	known := crud || req.Method == http.MethodGet && (req.Path == base+"/accounts" || req.Path == base+"/events" || req.Path == base+"/status") || req.Method == http.MethodPost && (req.Path == base+"/quota/refresh" || req.Path == base+"/strategy")
 	if !known {
 		return poolManagementError(http.StatusNotFound, "not found")
 	}
@@ -212,6 +212,25 @@ func (m *Manager) HandleManagement(ctx context.Context, req pluginapi.Management
 			return poolManagementJSON(http.StatusBadGateway, map[string]any{"accounts": p.Snapshot(), "error": "quota refresh failed"})
 		}
 		return poolManagementJSON(http.StatusOK, map[string]any{"accounts": p.Snapshot()})
+	case req.Method == http.MethodPost && req.Path == base+"/strategy":
+		var input struct {
+			Strategy string `json:"strategy"`
+		}
+		if !decodePoolManagementBody(req.Body, &input) {
+			return poolManagementError(http.StatusBadRequest, "invalid strategy request")
+		}
+		strategy := strings.TrimSpace(input.Strategy)
+		if !pool.ValidStrategy(strategy) {
+			return poolManagementError(http.StatusBadRequest, "unknown strategy")
+		}
+		if err := p.SetStrategy(strategy); err != nil {
+			return poolManagementError(http.StatusBadRequest, "unknown strategy")
+		}
+		// 只作用于本进程：持久化由调用方另行写宿主配置，本接口不声称已落盘。
+		return poolManagementJSON(http.StatusOK, map[string]any{
+			"strategy": p.Strategy(), "runtime_only": true,
+			"persistence": "host config unchanged; overridden on restart or reconfigure",
+		})
 	default:
 		return poolManagementError(http.StatusNotFound, "not found")
 	}

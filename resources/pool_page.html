@@ -38,7 +38,7 @@
 <section class="panel" aria-labelledby="strategyTitle">
   <div class="panel-header"><div class="panel-title"><h2 id="strategyTitle">调度策略</h2><p id="strategySummary" class="strategy-summary">决定后端在可用账号之间如何选号。切换只影响之后的请求，已在途的请求不受影响；额度、窗口与并发准入判定不随策略变化。</p></div><span id="strategyState" class="strategy-state">连接后读取</span></div>
   <div id="strategyBlades" class="blades" role="group" aria-label="选择调度策略"></div>
-  <p class="notice">选择后只写入本插件配置的 <span class="mono">pool.strategy</span> 键，不改动该插件的其他配置。保存由 CPAMP 异步重载；页面读回 <span class="mono">/status</span> 的 <span class="mono">scheduler_policy</span> 并确认出现新值后，才标记为已生效。</p>
+  <p class="notice">选择后优先写入本插件配置的 <span class="mono">pool.strategy</span> 键（只写该键，不改动该插件的其他配置）。若当前面板入口不转发该写入接口，则改用插件接口立即在本进程生效，并在状态中标注“仅本进程，重启或重配置后回配置值”。两条路径都会读回 <span class="mono">/status</span> 的 <span class="mono">scheduler_policy</span>，确认出现新值后才标记为已生效。</p>
 </section>
 <div id="message" class="banner" role="status" aria-live="polite" hidden></div>
 <div id="syncError" class="banner error" role="alert" hidden></div>
@@ -85,10 +85,11 @@
 (() => {
   'use strict';
   const API_BASE = '/v0/management/plugins/commandcode-pool';
-  const ENDPOINTS = new Set(['accounts', 'accounts/import', 'accounts/delete', 'quota/refresh', 'events', 'status']);
+  const ENDPOINTS = new Set(['accounts', 'accounts/import', 'accounts/delete', 'quota/refresh', 'strategy', 'events', 'status']);
   // 宿主配置写路径：ConfigV8 支持深路径直写单个标量，避免读改写整个插件配置。
   const PLUGIN_ID = API_BASE.slice(API_BASE.lastIndexOf('/') + 1);
-  const STRATEGY_CONFIG_PATH = '/v8/management/config/plugins/configs/' + PLUGIN_ID + '/pool/strategy';
+  const HOST_CONFIG_BASE = '/v8/management/config/plugins/configs/' + PLUGIN_ID;
+  const STRATEGY_ENDPOINT = 'pool/strategy';
   const STRATEGIES = [
     {id: 'headroom-first', effect: '余量最大者优先，其次剩余额度与负载', tag: '默认'},
     {id: 'round-robin', effect: '全部可用账号轮流，忽略评分', tag: '均匀消耗'},
@@ -170,8 +171,8 @@
   }
   async function api(endpoint, method = 'GET', body, after) {
     if (!connected || !managementKey) throw new Error('连接已断开。');
-    if (!ENDPOINTS.has(endpoint)) throw new Error('管理接口不在允许列表中。');
-    let url = API_BASE + '/' + endpoint;
+    if (!ENDPOINTS.has(endpoint) && endpoint !== STRATEGY_ENDPOINT) throw new Error('管理接口不在允许列表中。');
+    let url = (endpoint === STRATEGY_ENDPOINT ? HOST_CONFIG_BASE : API_BASE) + '/' + endpoint;
     if (endpoint === 'events') {
       if (!/^\d+$/.test(String(after))) throw new Error('事件游标无效。');
       url += '?scope=requests&after=' + encodeURIComponent(String(after));
@@ -205,12 +206,16 @@
   }
   let strategyPending = '';
   let strategyError = '';
+  let strategyPersistence = '';
   function activeStrategy() { return status && typeof status.scheduler_policy === 'string' ? status.scheduler_policy : ''; }
   function strategyStateLabel(active) {
     if (!connected) return '连接后读取';
     if (strategyError) return '保存失败：' + strategyError;
     if (strategyPending) return '已提交 ' + strategyPending + '，等待 CPAMP 重载确认（每 5 秒同步会复核）';
-    return active ? '当前生效：' + active : '尚未读取到 scheduler_policy';
+    if (!active) return '尚未读取到 scheduler_policy';
+    if (strategyPersistence === 'runtime') return '当前生效：' + active + '（仅本进程；当前面板入口无法写入配置，重启或重配置后回配置值）';
+    if (strategyPersistence === 'persisted') return '当前生效：' + active + '（已写入插件配置）';
+    return '当前生效：' + active;
   }
   function renderStrategy() {
     const container = $('strategyBlades');
@@ -229,30 +234,37 @@
     }
     $('strategyState').textContent = strategyStateLabel(active);
   }
-  async function setStrategy(id) {
+  function setStrategy(id) {
     if (!connected || !managementKey || mutating || syncing) return;
     if (!STRATEGIES.some(item => item.id === id) || id === activeStrategy()) return;
-    strategyPending = ''; strategyError = ''; show('strategyError', ''); mutating = true; renderStrategy(); setControls();
-    const controller = new AbortController(); controllers.add(controller);
-    let timedOut = false;
-    const timeout = setTimeout(() => { timedOut = true; controller.abort(); }, 20000);
-    try {
-      const response = await fetch(STRATEGY_CONFIG_PATH, {
-        method: 'PUT', headers: {'Authorization': 'Bearer ' + managementKey, 'Content-Type': 'application/json'},
-        body: JSON.stringify(id), signal: controller.signal,
-        credentials: 'same-origin', cache: 'no-store', redirect: 'error', referrerPolicy: 'no-referrer'
-      });
-      if (!response.ok) throw new Error('管理 API 返回 HTTP ' + response.status + '。请检查 CPAMP 与插件状态。');
-      // 宿主重载是异步的：只有读回 /status 报出新值才算生效。
-      const statusData = await api('status');
-      if (statusData.status && statusData.status.scheduler_policy === id) status = statusData.status;
-      else strategyPending = id;
-      renderStatus();
-    } catch (error) {
-      strategyPending = '';
-      strategyError = timedOut ? '写配置超过 20 秒未响应，请先用“立即同步”核对再决定是否重试。' : (error.message || String(error));
-      show('strategyError', '切换调度策略失败：' + strategyError, 'error');
-    } finally { clearTimeout(timeout); controllers.delete(controller); mutating = false; renderStrategy(); setControls(); }
+    const version = generation;
+    strategyPending = ''; strategyError = ''; strategyPersistence = ''; show('strategyError', '');
+    return mutation(async () => {
+      try {
+        let persisted = false;
+        try {
+          await api(STRATEGY_ENDPOINT, 'PUT', id);
+          persisted = true;
+        } catch (error) {
+          if (error.name === 'AbortError' || !alive(version)) throw error;
+          // 部分面板入口只转发 /v0，不转发宿主配置写入（/v8）；退回插件接口，
+          // 立即在本进程生效，并如实标注未落盘。
+          await api('strategy', 'POST', {strategy: id});
+        }
+        // 过期会话（已断开或已重连）不得继续读回或写共享状态。
+        if (!alive(version)) return;
+        // 宿主重载是异步的：只有读回 /status 报出新值才算生效。
+        const statusData = await api('status');
+        if (!alive(version)) return;
+        if (statusData.status && statusData.status.scheduler_policy === id) status = statusData.status;
+        else strategyPending = id;
+        strategyPersistence = persisted ? 'persisted' : 'runtime';
+      } catch (error) {
+        // 断开/重连造成的 AbortError 不算失败，也不写任何过期状态。
+        if (alive(version) && error.name !== 'AbortError') strategyError = error.message || String(error);
+        throw error;
+      }
+    }, () => { renderStatus(); renderStrategy(); }, 'strategyError');
   }
   function renderStatus() {
     const info = $('scopeInfo');
@@ -600,7 +612,7 @@
     connected = false; managementKey = ''; generation++; clearTimeout(timer); timer = null;
     for (const controller of controllers) controller.abort(); controllers.clear();
     accounts = []; events = []; status = null; cursor = '0'; paused = false; syncing = false; mutating = false;
-    strategyPending = ''; strategyError = '';
+    strategyPending = ''; strategyError = ''; strategyPersistence = '';
     $('connectionForm').reset(); $('accountForm').reset(); $('importForm').reset(); $('accountFilter').value = '';
     closeDialog('accountDialog'); closeDialog('importDialog');
     $('accountDialogTitle').textContent = '新增账号';
