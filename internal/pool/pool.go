@@ -56,11 +56,15 @@ type Pool struct {
 	sequence      uint64
 	nextAttempt   uint64
 	tie           uint64
-	closed        bool
-	storageBroken bool
-	locks         []*storageLock
-	secrets       map[string]struct{}
-	rename        func(string, string) error // instance-local transaction failure test seam
+	// roundRobinLast is the auth ID chosen by the previous round-robin pick. The
+	// eligible set changes between requests, so rotation advances by identity
+	// rather than by an index into a set whose size moves.
+	roundRobinLast string
+	closed         bool
+	storageBroken  bool
+	locks          []*storageLock
+	secrets        map[string]struct{}
+	rename         func(string, string) error // instance-local transaction failure test seam
 }
 
 // Lease is an upstream owner's reservation, not an expiring ticket. Cancel only
@@ -628,9 +632,18 @@ func (p *Pool) selectLocked(best []CandidateScore, expiry map[string]expiration,
 	switch p.cfg.Strategy {
 	case StrategyRoundRobin:
 		// Rotate across every eligible candidate, ignoring scores: even
-		// consumption at the cost of a higher chance of hitting a limit.
+		// consumption at the cost of a higher chance of hitting a limit. The
+		// cursor advances to the next auth ID after the previous pick, so an
+		// account that is always eligible cannot be starved by peers that come
+		// and go.
 		sort.SliceStable(best, func(i, j int) bool { return best[i].AuthID < best[j].AuthID })
-		return best[p.tie%uint64(len(best))], true
+		idx := sort.Search(len(best), func(i int) bool { return best[i].AuthID > p.roundRobinLast })
+		if idx == len(best) {
+			idx = 0
+		}
+		selected := best[idx]
+		p.roundRobinLast = selected.AuthID
+		return selected, true
 	case StrategyFillFirst:
 		// Fixed order, exhaust the current account before moving on.
 		sort.SliceStable(best, func(i, j int) bool { return best[i].AuthID < best[j].AuthID })

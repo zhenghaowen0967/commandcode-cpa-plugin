@@ -42,6 +42,40 @@ func TestPickRoundRobinRotatesEveryEligibleAccount(t *testing.T) {
 	}
 }
 
+func TestPickRoundRobinFairAcrossChangingCandidateSets(t *testing.T) {
+	p, _ := testPool(t, time.Minute)
+	if err := p.SetStrategy(StrategyRoundRobin); err != nil {
+		t.Fatal(err)
+	}
+	a := addAccount(t, p, "rr-dyn-a-key", "g-dyn-a", 4)
+	b := addAccount(t, p, "rr-dyn-b-key", "g-dyn-b", 4)
+	observe(t, p, a, 0.5, 10)
+	observe(t, p, b, 0.5, 10)
+	first, second := a, b
+	if b.AuthID < a.AuthID {
+		first, second = b, a
+	}
+	// The eligible set varies between requests (a singleton while the other
+	// account is saturated). A rotation indexed by the set size starves the
+	// account that is always present; the cursor must advance by identity.
+	both, single := []string{a.AuthID, b.AuthID}, []string{first.AuthID}
+	for i, tc := range []struct {
+		ids  []string
+		want string
+	}{
+		{both, first.AuthID},
+		{single, first.AuthID},
+		{both, second.AuthID},
+		{both, first.AuthID},
+		{single, first.AuthID},
+		{both, second.AuthID},
+	} {
+		if got := p.Pick(tc.ids, fmt.Sprintf("rr-dyn-%d", i), "model").AuthID; got != tc.want {
+			t.Fatalf("pick %d (%v) = %s, want %s", i, tc.ids, got, tc.want)
+		}
+	}
+}
+
 func TestPickFillFirstExhaustsBeforeSwitch(t *testing.T) {
 	p, _ := testPool(t, time.Minute)
 	if err := p.SetStrategy(StrategyFillFirst); err != nil {
