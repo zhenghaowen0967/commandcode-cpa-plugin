@@ -1,6 +1,38 @@
 # CommandCode 原生 CPA 账号池插件
 
-## 当前已上线：0.1.9-local（2026-10-10）
+## 当前已上线：0.1.10-local（2026-10-11）
+
+本轮新增**可热载的账号池调度策略**，并在账号池页面提供切换入口。
+
+- 配置键 `plugins.configs.<插件 ID>.pool.strategy`，四种策略：`headroom-first`
+  （默认，行为与旧版一致）、`round-robin`（全候选轮流，忽略评分）、`fill-first`
+  （固定顺序用尽再换）、`expiry-first`（到期最早且月额度 > 0 者优先）。非法值在首次
+  注册返回 `invalid_config`；活动池重配置回退上次有效注册，且策略变更只在所有可失败
+  步骤通过后应用，失败不泄漏。
+- 策略**只重排 eligible 候选**：额度/窗口/并发准入、Codex hold 过滤、混合 provider 交宿主、
+  调度不预占、不委托内建 picker 全部不变；5 小时/周窗口仅作准入，永不参与排序。
+- `expiry-first` 以上游 `currentPeriodEnd` 加“月额度 > 0”作**启发式**优先信号：该日期只表示
+  本期结束，不代表账号失效，也不代表月额度必然重置（见下文“月重置时间仍待确认”）；无数据或
+  已过期不享受优先，且不做“过期禁入”。
+- `/status` 的 `scheduler_policy` 报实际生效策略，pick 事件带策略名；`CandidateScore` 不变
+  （展示字段不进入评分）。
+- 账号池页面新增“调度策略”面板：四个策略刀闸 + 当前生效值；切换只写
+  `PUT /v8/management/config/plugins/configs/<插件 ID>/pool/strategy` 这一个键（不读改写整个
+  插件配置）。宿主重载是异步的，页面读回 `/status` 确认出现新值后才标记“当前生效”，否则显示
+  “已提交 … 等待 CPAMP 重载确认”。
+
+2026-10-11 15:02–15:05（北京时间）经用户授权上线为 `commandcode-pool-next` / `0.1.10-local`
+（PR #10，main `6159f6f`）：备份目录 `cpa-core/strategy-scheduling-migration-20261011T070249Z/`
+（旧库、config.yaml、pool state.json 快照与 SHA256SUMS，权限 0600/0700）；安装新库
+`plugins/commandcode-pool-next-v0.1.10-local.so`（SHA256 `2061b248…`），config `store.version`
+同步 `0.1.10-local`，旧库移出 `plugins/`；重启前核实 Codex bans 为空、无在途请求（inflight=0），
+经 `systemctl --user restart cpa-core` 完成切换。重启后读回：`registered=true`、
+`effective_enabled=true`、`/status` 报 `plugin_version 0.1.10-local` 与
+`scheduler_policy headroom-first`、三个账号仍启用（cap 10）、bans 仍空；页面写路径端到端验证
+（PUT 200 → 深路径读回 `"headroom-first"` → `/status` 一致，在途保持 0）。测试与验证边界见
+[VALIDATION.md](VALIDATION.md)。
+
+## 历史已上线：0.1.9-local（2026-10-10）
 
 本轮修复 Claude 源请求里 `tool_result.content` 携带 image 块时，Chat Completions
 与 Responses 两条目标路由一律 HTTP400（`unsupported tool_result block type
