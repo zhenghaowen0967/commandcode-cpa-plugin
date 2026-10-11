@@ -75,6 +75,54 @@ func TestFailedReconfigureDoesNotLeakStrategyChange(t *testing.T) {
 	}
 }
 
+func TestPoolManagementStrategyEndpoint(t *testing.T) {
+	m := newPoolHandlerManager(t)
+	resp := callPoolManagement(t, m, http.MethodPost, "/strategy", `{"strategy":"round-robin"}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("strategy endpoint = %d %s", resp.StatusCode, resp.Body)
+	}
+	var got struct {
+		Strategy    string `json:"strategy"`
+		RuntimeOnly bool   `json:"runtime_only"`
+	}
+	if json.Unmarshal(resp.Body, &got) != nil || got.Strategy != pool.StrategyRoundRobin || !got.RuntimeOnly {
+		t.Fatalf("strategy response = %s", resp.Body)
+	}
+	if m.pool.Strategy() != pool.StrategyRoundRobin {
+		t.Fatalf("runtime strategy = %q", m.pool.Strategy())
+	}
+	var status struct {
+		Status struct {
+			Policy string `json:"scheduler_policy"`
+		} `json:"status"`
+	}
+	statusResp := callPoolManagement(t, m, http.MethodGet, "/status", "")
+	if json.Unmarshal(statusResp.Body, &status) != nil || status.Status.Policy != pool.StrategyRoundRobin {
+		t.Fatalf("status after switch = %s", statusResp.Body)
+	}
+	for _, body := range []string{``, `{}`, `[]`, `{"strategy":""}`, `{"strategy":"bogus"}`, `{"strategy":"round-robin","extra":1}`, `{"strategy":7}`, `{"strategy":"round-robin"} {}`} {
+		if r := callPoolManagement(t, m, http.MethodPost, "/strategy", body); r.StatusCode != http.StatusBadRequest {
+			t.Fatalf("invalid body %q = %d %s", body, r.StatusCode, r.Body)
+		}
+	}
+	if m.pool.Strategy() != pool.StrategyRoundRobin {
+		t.Fatalf("a rejected request changed the strategy: %q", m.pool.Strategy())
+	}
+	if r := callPoolManagement(t, m, http.MethodGet, "/strategy", ""); r.StatusCode != http.StatusNotFound {
+		t.Fatalf("GET strategy = %d", r.StatusCode)
+	}
+}
+
+func TestPoolManagementStrategyEndpointGuardOnlyUnavailable(t *testing.T) {
+	authDir := t.TempDir()
+	m := NewManager(nil)
+	registerBridgeMode(t, m, guardOnlyConfigYAML(authDir))
+	t.Cleanup(func() { _, _ = m.HandleCall(pluginabi.MethodPluginShutdown, nil) })
+	if r := callPoolManagement(t, m, http.MethodPost, "/strategy", `{"strategy":"headroom-first"}`); r.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("guard-only strategy switch = %d %s", r.StatusCode, r.Body)
+	}
+}
+
 func TestRegisterRejectsUnknownStrategy(t *testing.T) {
 	m, _ := newTestManager(catalogResponder(true, testCatalogJSON))
 	t.Cleanup(func() { _, _ = m.HandleCall(pluginabi.MethodPluginShutdown, nil) })

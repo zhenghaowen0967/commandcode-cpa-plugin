@@ -406,7 +406,7 @@ const poolPageBehaviorHarness = poolPageDOMHarness + `
   await lag.get('reloadButton').fire('click'); await lag.flush();
   assert.ok(lag.get('strategyState').textContent.includes('当前生效：fill-first'), 'the next sync flips the pending strategy to applied');
 
-  const writeFail = fixture(call => call.options.method === 'PUT' ? {httpStatus: 500} : (call.url.endsWith('/status') ? {status: {...defaultStatus, scheduler_policy: 'headroom-first'}} : undefined));
+  const writeFail = fixture(call => call.url.includes('/v8/management/config/') ? {httpStatus: 500} : (call.url.endsWith('/strategy') ? {httpStatus: 500} : (call.url.endsWith('/status') ? {status: {...defaultStatus, scheduler_policy: 'headroom-first'}} : undefined)));
   await writeFail.connect();
   await writeFail.get('strategyBlades').querySelectorAll('.strategy-blade').find(b => b.dataset.strategy === 'round-robin').fire('click');
   await writeFail.flush();
@@ -415,6 +415,24 @@ const poolPageBehaviorHarness = poolPageDOMHarness + `
   assert.ok(!writeFail.get('strategyState').textContent.includes('当前生效：round-robin'), 'a failed write must never claim the new strategy');
   await writeFail.get('disconnectButton').fire('click');
   assert.equal(writeFail.get('strategyError').hidden, true, 'disconnect clears the strategy error banner');
+
+  // 面板入口不转发宿主配置写入（/v8）时，退回插件 /v0 接口，并如实标注“仅本进程”。
+  let fallbackPolicy = 'headroom-first';
+  const fallback = fixture(call => {
+    if (call.url.includes('/v8/management/config/') && call.options.method === 'PUT') return {httpStatus: 404};
+    if (call.url.endsWith('/strategy') && call.options.method === 'POST') { fallbackPolicy = call.body.strategy; return {strategy: call.body.strategy, runtime_only: true}; }
+    return call.url.endsWith('/status') ? {status: {...defaultStatus, scheduler_policy: fallbackPolicy}} : undefined;
+  });
+  await fallback.connect();
+  await fallback.get('strategyBlades').querySelectorAll('.strategy-blade').find(b => b.dataset.strategy === 'expiry-first').fire('click');
+  await fallback.flush();
+  assert.ok(fallback.calls.some(c => c.url.includes('/v8/management/config/') && c.options.method === 'PUT'), 'tries the persistent config write first');
+  const fallbackPost = fallback.calls.find(c => c.url.endsWith('/strategy') && c.options.method === 'POST');
+  assert.ok(fallbackPost && fallbackPost.body.strategy === 'expiry-first', 'falls back to the plugin endpoint when the config write is blocked');
+  assert.equal(fallbackPost.url, '/v0/management/plugins/commandcode-pool/strategy');
+  assert.ok(fallback.get('strategyState').textContent.includes('当前生效：expiry-first'));
+  assert.ok(fallback.get('strategyState').textContent.includes('仅本进程'), 'must disclose that the config file was not written');
+  assert.equal(fallback.get('strategyError').hidden, true);
 
   process.stdout.write('pool page mock-DOM management regressions passed\n');
 })().catch(error => {console.error(error); process.exitCode = 1;});
