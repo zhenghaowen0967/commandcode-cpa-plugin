@@ -31,7 +31,7 @@ const (
 	originalPluginID  = "commandcode-pool"
 	nextPluginID      = "commandcode-pool-next"
 	updatePluginID    = "commandcode-pool-update"
-	pluginVersion     = "0.1.11-local"
+	pluginVersion     = "0.1.12-local"
 	viewPluginVersion = "0.1.1-view"
 )
 
@@ -378,6 +378,7 @@ func (m *Manager) registerManagement(request []byte) ([]byte, error) {
 		{Method: "POST", Path: "/plugins/" + pluginName + "/accounts/import"},
 		{Method: "POST", Path: "/plugins/" + pluginName + "/accounts/delete"},
 		{Method: "POST", Path: "/plugins/" + pluginName + "/quota/refresh"},
+		{Method: "POST", Path: "/plugins/" + pluginName + "/strategy"},
 		{Method: "GET", Path: "/plugins/" + pluginName + "/events"},
 		{Method: "GET", Path: "/plugins/" + pluginName + "/status"},
 		{Method: "GET", Path: "/plugins/" + pluginName + "/codex/bans"},
@@ -390,7 +391,7 @@ func (m *Manager) registerManagement(request []byte) ([]byte, error) {
 		{Path: "/codex", Menu: "Codex 429 保护", Description: "窗口临时禁用、到期恢复与手动解禁。"},
 	}
 	if m.guardOnly() {
-		routes = routes[7:]
+		routes = routes[8:]
 		registeredResources = registeredResources[1:]
 	}
 	if pluginRole == "full" && (pluginName == nextPluginID || pluginName == updatePluginID) && !m.guardOnly() {

@@ -50,8 +50,8 @@ func testFullRegistersAndDispatchesOriginalManagementAliases(t *testing.T, hostI
 	}
 	var registration managementRegistration
 	decodeResult(t, resp, &registration)
-	if len(registration.Routes) != 22 {
-		t.Fatalf("registered route count = %d, want 11 next routes and 11 original aliases", len(registration.Routes))
+	if len(registration.Routes) != 24 {
+		t.Fatalf("registered route count = %d, want 12 next routes and 12 original aliases", len(registration.Routes))
 	}
 	var nextRoutes, originalAliases int
 	for _, route := range registration.Routes {
@@ -64,7 +64,7 @@ func testFullRegistersAndDispatchesOriginalManagementAliases(t *testing.T, hostI
 			t.Fatalf("unexpected management route: %+v", route)
 		}
 	}
-	if nextRoutes != 11 || originalAliases != 11 {
+	if nextRoutes != 12 || originalAliases != 12 {
 		t.Fatalf("next routes=%d original aliases=%d", nextRoutes, originalAliases)
 	}
 
